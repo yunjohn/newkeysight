@@ -1,0 +1,25 @@
+# Build outputs
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+
+# IDE and local tooling
+.idea/
+.vs/
+.vscode/
+.codexobj/
+*.user
+*.suo
+*.DotSettings.user
+*_wpftmp.csproj
+
+# Machine-local data and diagnostics
+captures/
+logs/
+*.log
+*.dmp
+
+# OS files
+Thumbs.db
+.DS_Store

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\KeysightScopeApp.Core\KeysightScopeApp.Core.csproj" />
+    <ProjectReference Include="..\..\src\KeysightScopeApp.Infrastructure\KeysightScopeApp.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

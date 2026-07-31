@@ -1,0 +1,287 @@
+<UserControl x:Class="KeysightScopeApp.App.Views.WaveformAnalysisView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:scottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
+        Focusable="True" MinWidth="900" MinHeight="560" KeyDown="Window_KeyDown">
+    <Grid Background="{StaticResource BackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border x:Name="ToolPanel" Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource OutlineBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="28" Height="28" Background="{StaticResource CyanBrush}" CornerRadius="3">
+                        <TextBlock Text="∿" Foreground="#071012" FontSize="20"
+                                   FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Margin="8,0,0,0">
+                        <TextBlock Text="波形查看器" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="信号精密分析核心" Foreground="{StaticResource MutedTextBrush}"
+                                   FontSize="11" FontFamily="Microsoft YaHei UI"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="全图" Click="ResetView_Click"/>
+                    <Button Content="时间复位" Click="ResetTime_Click"/>
+                    <Button Content="纵轴复位" Click="ResetY_Click"/>
+                    <Button x:Name="BoxZoomButton" Content="框选缩放：开" Click="BoxZoom_Click"/>
+                    <Button x:Name="PanButton" Content="平移" Tag="Pan" Click="InteractionTool_Click"/>
+                    <Button Content="撤销" Click="UndoView_Click"/>
+                    <Button Content="重做" Click="RedoView_Click"/>
+                </StackPanel>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="刷新波形" Style="{StaticResource PrimaryButton}"
+                            Click="RefreshWaveform_Click" ToolTip="从示波器重新抓取最新波形"/>
+                    <Button Content="导出 PNG" Style="{StaticResource PrimaryButton}" Click="ExportPng_Click"/>
+                    <Button Content="纯波形  F11" Click="ToggleWaveformOnly_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="SidebarColumn" Width="328"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Background="{StaticResource ScreenBrush}">
+                <scottPlot:WpfPlot x:Name="Plot"/>
+                <Canvas x:Name="InteractionOverlay" Panel.ZIndex="5">
+                    <Border x:Name="BoxZoomOverlay" Visibility="Collapsed"
+                            IsHitTestVisible="False"
+                            Background="#2600F5FF" BorderBrush="{StaticResource CyanBrush}"
+                            BorderThickness="1"/>
+                    <Border x:Name="CursorAHandle" Width="28" Height="24" CornerRadius="3"
+                            Visibility="Collapsed" Background="#FFFFB300" Cursor="SizeWE"
+                            MouseLeftButtonDown="CursorHandle_MouseLeftButtonDown"
+                            MouseMove="CursorHandle_MouseMove"
+                            MouseLeftButtonUp="CursorHandle_MouseLeftButtonUp" Tag="A">
+                        <TextBlock Text="A" Foreground="#111316" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border x:Name="CursorBHandle" Width="28" Height="24" CornerRadius="3"
+                            Visibility="Collapsed" Background="#FFE040FB" Cursor="SizeWE"
+                            MouseLeftButtonDown="CursorHandle_MouseLeftButtonDown"
+                            MouseMove="CursorHandle_MouseMove"
+                            MouseLeftButtonUp="CursorHandle_MouseLeftButtonUp" Tag="B">
+                        <TextBlock Text="B" Foreground="#111316" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </Canvas>
+                <Border x:Name="MeasurementPanel" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Margin="16" MaxWidth="820" Padding="12,8" CornerRadius="4"
+                        Background="#E6111316" BorderBrush="{StaticResource OutlineBrush}" BorderThickness="1">
+                    <TextBlock x:Name="MeasurementReadout" Foreground="{StaticResource TextBrush}"
+                               FontFamily="JetBrains Mono" FontSize="11" TextWrapping="Wrap"
+                               AutomationProperties.Name="波形测量结果"/>
+                </Border>
+                <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16"
+                        Background="#CC1A1C1F" BorderBrush="{StaticResource OutlineBrush}"
+                        BorderThickness="1" CornerRadius="4" Padding="12,8">
+                    <TextBlock x:Name="CursorReadout" Foreground="{StaticResource CyanBrush}"
+                               FontFamily="JetBrains Mono" FontSize="11"
+                               AutomationProperties.Name="游标读数"/>
+                </Border>
+            </Grid>
+
+            <Border x:Name="SidebarPanel" Grid.Column="1" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource OutlineBrush}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <TextBlock Text="信号控制" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="通道与测量控制台" Margin="0,4,0,16"
+                                   Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
+
+                        <Border Style="{StaticResource PanelBorder}">
+                            <StackPanel>
+                                <TextBlock Text="通道显示" Style="{StaticResource SectionLabel}"/>
+                                <UniformGrid Columns="2" Margin="0,12,0,4">
+                                    <CheckBox x:Name="Ch1" Content="CH1  青色" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch2" Content="CH2  绿色" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch3" Content="CH3  琥珀色" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch4" Content="CH4  红色" IsChecked="True" Click="Channel_Click"/>
+                                </UniformGrid>
+                                <TextBlock Text="活动通道" Style="{StaticResource SectionLabel}" Margin="0,12,0,8"/>
+                                <ComboBox x:Name="ActiveChannel"
+                                          ItemTemplate="{StaticResource ChannelDisplayItemTemplate}"
+                                          SelectionChanged="ActiveChannel_SelectionChanged"/>
+                                <UniformGrid Columns="2" Margin="0,8,0,0">
+                                    <Button Content="↑ 通道上移" Tag="Up" Click="OffsetChannel_Click"/>
+                                    <Button Content="↓ 通道下移" Tag="Down" Click="OffsetChannel_Click"/>
+                                    <Button Content="自动堆叠" Click="AutoStack_Click"/>
+                                    <Button Content="重置偏移" Click="ResetOffsets_Click"/>
+                                    <Button x:Name="ChannelMoveButton" Content="拖动活动通道"
+                                            Tag="ChannelMove" Click="InteractionTool_Click"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource PanelBorder}">
+                            <StackPanel>
+                                <TextBlock Text="游标与测量" Style="{StaticResource SectionLabel}"/>
+                                <ComboBox x:Name="MeasurementScope" SelectedIndex="0" Margin="0,8,0,4"
+                                          SelectionChanged="MeasurementScope_SelectionChanged">
+                                    <ComboBoxItem Content="整条波形" Tag="Entire"/>
+                                    <ComboBoxItem Content="当前视图" Tag="View"/>
+                                    <ComboBoxItem Content="游标 A-B" Tag="Cursors"/>
+                                </ComboBox>
+                                <UniformGrid Columns="2">
+                                    <Button Content="放置游标 A" Tag="A" Click="ArmCursor_Click"/>
+                                    <Button Content="放置游标 B" Tag="B" Click="ArmCursor_Click"/>
+                                    <Button Content="顺序放置 A/B" Tag="SequenceA" Click="ArmCursor_Click"/>
+                                    <Button Content="智能锁定" Tag="Smart" Click="LockWindow_Click"/>
+                                    <Button Content="A 上升沿" Tag="A:Rising" Click="SnapCursor_Click"/>
+                                    <Button Content="A 下降沿" Tag="A:Falling" Click="SnapCursor_Click"/>
+                                    <Button Content="B 上升沿" Tag="B:Rising" Click="SnapCursor_Click"/>
+                                    <Button Content="B 下降沿" Tag="B:Falling" Click="SnapCursor_Click"/>
+                                    <Button Content="最近脉冲" Tag="Pulse" Click="LockWindow_Click"/>
+                                    <Button Content="最近周期" Tag="Period" Click="LockWindow_Click"/>
+                                    <Button Content="电压游标 1" Tag="VA" Click="ArmCursor_Click"/>
+                                    <Button Content="电压游标 2" Tag="VB" Click="ArmCursor_Click"/>
+                                </UniformGrid>
+                                <Button Content="清除游标" Click="ClearCursors_Click"/>
+                                <CheckBox x:Name="ShowMeasurements" Content="显示测量覆盖层"
+                                          IsChecked="True" Click="ShowMeasurements_Click"/>
+                                <CheckBox x:Name="FreezeMeasurements" Content="冻结测量结果"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Expander Header="波形测量" IsExpanded="True">
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition/>
+                                        <ColumnDefinition/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,4,0">
+                                        <TextBlock Text="测量通道" Style="{DynamicResource SectionLabel}"/>
+                                        <ComboBox Height="40"
+                                                  SelectedValue="{Binding MeasurementChannel}" SelectedValuePath="Tag">
+                                            <ComboBoxItem Content="CH1" Tag="CHANnel1"/>
+                                            <ComboBoxItem Content="CH2" Tag="CHANnel2"/>
+                                            <ComboBoxItem Content="CH3" Tag="CHANnel3"/>
+                                            <ComboBoxItem Content="CH4" Tag="CHANnel4"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                        <TextBlock Text="&#160;" Style="{DynamicResource SectionLabel}"/>
+                                        <Button Height="40"
+                                                Margin="0,4,0,8"
+                                                Padding="16,0"
+                                                HorizontalAlignment="Stretch"
+                                                Content="复制到其他通道"
+                                                Click="CopyMeasurementsToOtherChannels_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Content="基础" Command="{Binding ApplyMeasurementTemplateCommand}" CommandParameter="基础模板"/>
+                                    <Button Content="方波" Command="{Binding ApplyMeasurementTemplateCommand}" CommandParameter="方波模板"/>
+                                    <Button Content="纹波" Command="{Binding ApplyMeasurementTemplateCommand}" CommandParameter="纹波模板"/>
+                                    <Button Content="边沿" Command="{Binding ApplyMeasurementTemplateCommand}" CommandParameter="边沿模板"/>
+                                    <Button Content="默认项" Command="{Binding SelectDefaultMeasurementsCommand}"/>
+                                    <Button Content="全选" Command="{Binding SelectAllMeasurementsCommand}"/>
+                                    <Button Content="清空" Command="{Binding ClearMeasurementsCommand}"/>
+                                </WrapPanel>
+                                <ItemsControl ItemsSource="{Binding MeasurementOptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Foreground="{DynamicResource MutedTextBrush}">
+                                    <Run Text="已选 "/>
+                                    <Run Text="{Binding SelectedMeasurementCount, Mode=OneWay}"/>
+                                    <Run Text=" 项"/>
+                                </TextBlock>
+                                <TextBlock Text="测量范围由上方“整条波形 / 当前视图 / 游标 A-B”决定。"
+                                           TextWrapping="Wrap" Foreground="{DynamicResource CyanBrush}"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="书签与标注" IsExpanded="True">
+                            <StackPanel Margin="0,8,0,0">
+                                <ComboBox x:Name="BookmarkList" SelectionChanged="BookmarkList_SelectionChanged"/>
+                                <UniformGrid Columns="2">
+                                    <Button Content="保存书签" Click="AddBookmark_Click"/>
+                                    <Button Content="添加标注" Click="AddAnnotation_Click"/>
+                                </UniformGrid>
+                                <Button Content="删除末条标注" Click="RemoveAnnotation_Click"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="边沿与相位诊断" IsExpanded="False">
+                            <StackPanel Margin="0,8,0,0">
+                                <ComboBox x:Name="QuickEvents" ToolTip="最小值、最大值和前 50 个边沿"
+                                          SelectionChanged="QuickEvents_SelectionChanged"/>
+                                <UniformGrid Columns="2">
+                                    <ComboBox x:Name="ComparePrimary" ItemTemplate="{StaticResource ChannelDisplayItemTemplate}"/>
+                                    <ComboBox x:Name="CompareSecondary" ItemTemplate="{StaticResource ChannelDisplayItemTemplate}"/>
+                                    <Button Content="比较上升沿" Tag="Rising" Click="CompareEdges_Click"/>
+                                    <Button Content="比较下降沿" Tag="Falling" Click="CompareEdges_Click"/>
+                                </UniformGrid>
+                                <Button Content="导出相位诊断" Click="ExportPhase_Click"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="参考波形与截图" IsExpanded="False">
+                            <StackPanel Margin="0,8,0,0">
+                                <UniformGrid Columns="2">
+                                    <Button Content="加载参考波形" Click="LoadReference_Click"/>
+                                    <Button Content="清除参考波形" Click="ClearReference_Click"/>
+                                </UniformGrid>
+                                <CheckBox x:Name="ScreenshotIncludeChrome" Content="截图包含界面"/>
+                                <CheckBox x:Name="ScreenshotIncludeOverlays" Content="纯图包含覆盖层" IsChecked="True"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Popup x:Name="WaveformContextPopup" Placement="MousePoint"
+               AllowsTransparency="True" StaysOpen="False">
+            <Border Background="{StaticResource PanelHighBrush}" CornerRadius="4"
+                    BorderBrush="{StaticResource OutlineStrongBrush}"
+                    BorderThickness="1" Padding="4">
+                <StackPanel Width="210">
+                    <TextBlock Text="游标" Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="11" Margin="14,6,14,3"/>
+                    <Button Content="在此放置游标 A        A" Tag="CursorA" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="在此放置游标 B        B" Tag="CursorB" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Border Height="1" Margin="8,4" Background="{StaticResource OutlineStrongBrush}"/>
+                    <TextBlock Text="分析" Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="11" Margin="14,5,14,3"/>
+                    <Button Content="锁定最近脉冲" Tag="Pulse" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="锁定最近周期" Tag="Period" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="添加标注" Tag="Annotate" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Border Height="1" Margin="8,4" Background="{StaticResource OutlineStrongBrush}"/>
+                    <TextBlock Text="视图" Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="11" Margin="14,5,14,3"/>
+                    <Button Content="复位全图                    R" Tag="Reset" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="导出当前图像" Tag="Export" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

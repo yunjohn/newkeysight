@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KeysightScopeApp.App/KeysightScopeApp.App.csproj" />
+    <Project Path="src/KeysightScopeApp.Core/KeysightScopeApp.Core.csproj" />
+    <Project Path="src/KeysightScopeApp.Infrastructure/KeysightScopeApp.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KeysightScopeApp.App.Tests/KeysightScopeApp.App.Tests.csproj" />
+    <Project Path="tests/KeysightScopeApp.Core.Tests/KeysightScopeApp.Core.Tests.csproj" />
+    <Project Path="tests/KeysightScopeApp.Infrastructure.Tests/KeysightScopeApp.Infrastructure.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/KeysightScopeApp.Benchmark/KeysightScopeApp.Benchmark.csproj" />
+    <Project Path="tools/KeysightScopeApp.HardwareSmoke/KeysightScopeApp.HardwareSmoke.csproj" />
+    <Project Path="tools/KeysightScopeApp.Migrate/KeysightScopeApp.Migrate.csproj" />
+  </Folder>
+</Solution>

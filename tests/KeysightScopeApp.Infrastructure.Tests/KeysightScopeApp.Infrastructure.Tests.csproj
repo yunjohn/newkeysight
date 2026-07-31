@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>false</IsPackable><IsTestProject>true</IsTestProject></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/KeysightScopeApp.Infrastructure/KeysightScopeApp.Infrastructure.csproj" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="coverlet.collector"><PrivateAssets>all</PrivateAssets></PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../../bundle_20260325_151508.csv" Link="TestData/bundle_20260325_151508.csv"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../golden/waveform_analysis_v1.json" Link="TestData/waveform_analysis_v1.json"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../captures/startup_brake_tests/failure_20260730_100704.csv"
+          Link="TestData/failure_20260730_100704.csv"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/KeysightScopeApp.Core/KeysightScopeApp.Core.csproj" />
+    <ProjectReference Include="../../src/KeysightScopeApp.Infrastructure/KeysightScopeApp.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

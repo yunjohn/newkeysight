@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "source": "bundle_20260325_151508.csv",
+  "channels": {
+    "CHANnel1": {
+      "point_count": 20000,
+      "duration_s": 0.9999500000000001,
+      "sample_period_s": 5.000000000000001e-05,
+      "voltage_min": 1.224372,
+      "voltage_max": 5.324874,
+      "voltage_pp": 4.1005020000000005,
+      "voltage_mean": 3.80139479345,
+      "voltage_rms": 4.03898860691759,
+      "logic_low_v": 1.8863428472365797,
+      "logic_high_v": 4.761148741124205,
+      "amplitude_v": 1.4374029469438128,
+      "estimated_frequency_hz": 4.3911591329456705,
+      "pulse_count": 2,
+      "pulse_width_s": 0.34150454545454556,
+      "duty_cycle": 1.4996008037151876,
+      "rise_time_s": null,
+      "fall_time_s": 0.699580060894661
+    },
+    "CHANnel2": {
+      "point_count": 20000,
+      "duration_s": 0.9999500000000001,
+      "sample_period_s": 5.000000000000001e-05,
+      "voltage_min": -1.57789,
+      "voltage_max": 7.467335,
+      "voltage_pp": 9.045225,
+      "voltage_mean": 2.38823010725,
+      "voltage_rms": 3.577217582191382,
+      "logic_low_v": -0.032806769421036226,
+      "logic_high_v": 5.297525411713103,
+      "amplitude_v": 2.6651660905670695,
+      "estimated_frequency_hz": 301.884570471078,
+      "pulse_count": 236,
+      "pulse_width_s": 0.0016187585488094854,
+      "duty_cycle": 0.48867822920373705,
+      "rise_time_s": 0.016493610001109552,
+      "fall_time_s": 0.36311445650183094
+    },
+    "CHANnel3": {
+      "point_count": 20000,
+      "duration_s": 0.9999500000000001,
+      "sample_period_s": 5.000000000000001e-05,
+      "voltage_min": -16.05339,
+      "voltage_max": 12.48932,
+      "voltage_pp": 28.54271,
+      "voltage_mean": -0.5171909370000001,
+      "voltage_rms": 2.7462921456731086,
+      "logic_low_v": -3.7140516485320805,
+      "logic_high_v": 0.5120845290501406,
+      "amplitude_v": 2.1130680887911106,
+      "estimated_frequency_hz": 890.0779797056996,
+      "pulse_count": 681,
+      "pulse_width_s": 0.001880939173684496,
+      "duty_cycle": 1.674182539662404,
+      "rise_time_s": 0.02724300664335679,
+      "fall_time_s": null
+    }
+  }
+}
