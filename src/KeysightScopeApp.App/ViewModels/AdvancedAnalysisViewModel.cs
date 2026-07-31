@@ -723,7 +723,7 @@ public sealed class AdvancedAnalysisViewModel(
                 await reports.ExportCsvAsync([lastRun], dialog.FileName);
             else if (lastStartupBrakeResult is not null && lastStartupBrakeConfig is not null)
                 await ExportStartupBrakeHtmlAsync(
-                    lastRun, lastStartupBrakeResult, lastStartupBrakeConfig,
+                    lastRun, lastStartupBrakeResult, lastStartupBrakeConfig, bundle,
                     dialog.FileName, History.Count);
             else await reports.ExportHtmlAsync(lastRun, dialog.FileName);
             Status = $"报告已保存：{dialog.FileName}";
@@ -735,6 +735,7 @@ public sealed class AdvancedAnalysisViewModel(
         TestRun run,
         StartupBrakeResult result,
         StartupBrakeConfig config,
+        WaveformBundle? waveformBundle,
         string targetPath,
         int historyCount,
         CancellationToken token = default)
@@ -755,11 +756,38 @@ public sealed class AdvancedAnalysisViewModel(
         static string Seconds(double? value) => value is null ? "-" : $"{value.Value:F3} s";
         static string Peak(AnalysisPoint? value) => value is null ? "-" : $"{value.Value:F3} A";
         static string E(string value) => WebUtility.HtmlEncode(value);
+        static string PhaseRange(double? start, double? end)
+        {
+            if (start is null || end is null) return "-";
+            return $"{start.Value:F6} → {end.Value:F6} s　" +
+                   $"（{Math.Abs(end.Value - start.Value) * 1000:F3} ms）";
+        }
+        static string SignalRange(
+            WaveformBundle? source,
+            string channel,
+            double? start,
+            double? end,
+            string fallbackUnit)
+        {
+            if (source is null || start is null || end is null ||
+                !source.Channels.TryGetValue(channel, out WaveformData? waveform)) return "-";
+            var range = new TimeRange(Math.Min(start.Value, end.Value), Math.Max(start.Value, end.Value));
+            (int left, int right) = WaveformAnalysis.LocateRange(waveform.X, range);
+            if (right < left) return "-";
+            double minimum = waveform.Y.Skip(left).Take(right - left + 1).Min();
+            double maximum = waveform.Y.Skip(left).Take(right - left + 1).Max();
+            string unit = string.IsNullOrWhiteSpace(waveform.Unit) ? fallbackUnit : waveform.Unit;
+            return $"{minimum:F6} → {maximum:F6} {unit}　（峰峰值 {maximum - minimum:F6} {unit}）";
+        }
 
         double? hitFrequency = result.StableSpeedStats is { } speed
             ? speed.AverageRpm * Math.Max(1, config.PulsesPerRevolution) / 60.0
             : null;
         double? hitPeriod = hitFrequency is > 0 ? 1.0 / hitFrequency : null;
+        double? startupStart = result.StartupStart?.TimeSeconds;
+        double? startupEnd = result.SpeedReached?.TimeSeconds;
+        double? brakeStart = result.BrakeStart?.TimeSeconds;
+        double? brakeEnd = result.BrakeEndWindow?.StartSeconds;
         var rows = new (string Label, string Value)[]
         {
             ("测试范围", ScopeText(config.ScopeMode)),
@@ -773,10 +801,18 @@ public sealed class AdvancedAnalysisViewModel(
             ("达速时刻", Point(result.SpeedReached)),
             ("启动时长", Seconds(result.StartupDelaySeconds)),
             ("启动峰值电流", Peak(result.StartupPeakCurrent)),
+            ("加速阶段时间范围", PhaseRange(startupStart, startupEnd)),
+            ("加速段控制信号范围", SignalRange(waveformBundle, config.ControlChannel, startupStart, startupEnd, "V")),
+            ("加速段速度反馈范围", SignalRange(waveformBundle, config.SpeedChannel, startupStart, startupEnd, "V")),
+            ("加速段电流范围", SignalRange(waveformBundle, config.CurrentChannel, startupStart, startupEnd, "A")),
             ("刹车起点", Point(result.BrakeStart)),
             ("刹车终点", result.BrakeEndWindow is null ? "-" : $"{result.BrakeEndWindow.StartSeconds:F3} s"),
             ("刹车时长", Seconds(result.BrakeDelaySeconds)),
             ("刹车峰值电流", Peak(result.BrakePeakCurrent)),
+            ("减速阶段时间范围", PhaseRange(brakeStart, brakeEnd)),
+            ("减速段控制信号范围", SignalRange(waveformBundle, config.ControlChannel, brakeStart, brakeEnd, "V")),
+            ("减速段速度反馈范围", SignalRange(waveformBundle, config.SpeedChannel, brakeStart, brakeEnd, "V")),
+            ("减速段电流范围", SignalRange(waveformBundle, config.CurrentChannel, brakeStart, brakeEnd, "A")),
             ("命中频率", hitFrequency is null ? "-" : $"{hitFrequency.Value:F3} Hz"),
             ("命中周期", hitPeriod is null ? "-" : $"{hitPeriod.Value * 1000:F3} ms"),
             ("稳定转速平均值", result.StableSpeedStats is null
@@ -914,7 +950,7 @@ public sealed class AdvancedAnalysisViewModel(
             }
             if (resultSnapshot is not null && configSnapshot is not null)
                 await ExportStartupBrakeHtmlAsync(
-                    archivedRun, resultSnapshot, configSnapshot,
+                    archivedRun, resultSnapshot, configSnapshot, bundleSnapshot,
                     Path.Combine(directory, "report.html"), History.Count, token);
             else
                 await reports.ExportHtmlAsync(archivedRun, Path.Combine(directory, "report.html"), token);
