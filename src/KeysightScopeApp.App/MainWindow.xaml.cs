@@ -22,6 +22,9 @@ public partial class MainWindow : Window
     private readonly WaveformAnalysisView waveformView;
     private readonly AdvancedAnalysisView advancedAnalysisView;
     private readonly AdvancedAnalysisViewModel advancedAnalysisViewModel;
+    private readonly AiAssistantView aiAssistantView;
+    private readonly AiWaveformAnalysisViewModel aiWaveformAnalysisViewModel;
+    private AiWaveformAnalysisWindow? aiWaveformAnalysisWindow;
     private CancellationTokenSource? previewSummaryRefresh;
 
     public MainWindow(
@@ -30,18 +33,24 @@ public partial class MainWindow : Window
         WaveformWorkspaceStore workspaceStore,
         WaveformCsvService csvService,
         AdvancedAnalysisViewModel advancedAnalysisViewModel,
+        AiAssistantViewModel aiAssistantViewModel,
+        AiWaveformAnalysisViewModel aiWaveformAnalysisViewModel,
         ILogger<MainWindow> logger)
     {
         InitializeComponent();
         Title = $"{ApplicationInfo.ProductName} | C# 版本 v{ApplicationInfo.Version}";
         this.viewModel = viewModel;
         this.advancedAnalysisViewModel = advancedAnalysisViewModel;
+        this.aiWaveformAnalysisViewModel = aiWaveformAnalysisViewModel;
         DataContext = viewModel;
         waveformView = new WaveformAnalysisView(workspaceStore, csvService);
         waveformView.RefreshWaveformRequested += WaveformView_RefreshWaveformRequested;
+        waveformView.AiAnalysisRequested += WaveformView_AiAnalysisRequested;
         advancedAnalysisView = new AdvancedAnalysisView(advancedAnalysisViewModel);
+        aiAssistantView = new AiAssistantView(aiAssistantViewModel);
         WaveformViewHost.Content = waveformView;
         AdvancedAnalysisHost.Content = advancedAnalysisView;
+        AiAssistantHost.Content = aiAssistantView;
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         viewModel.WorkspaceTabRequested += ViewModel_WorkspaceTabRequested;
         advancedAnalysisViewModel.NavigationRequested += Analysis_NavigationRequested;
@@ -58,6 +67,8 @@ public partial class MainWindow : Window
             Height = Math.Max(MinHeight, settings.WindowHeight);
             RenderPreview();
             SynchronizeAnalysisViews();
+            await aiAssistantViewModel.InitializeAsync();
+            await aiWaveformAnalysisViewModel.InitializeAsync();
         };
         Closing += (_, _) =>
         {
@@ -69,6 +80,7 @@ public partial class MainWindow : Window
             viewModel.PropertyChanged -= ViewModel_PropertyChanged;
             viewModel.WorkspaceTabRequested -= ViewModel_WorkspaceTabRequested;
             waveformView.RefreshWaveformRequested -= WaveformView_RefreshWaveformRequested;
+            waveformView.AiAnalysisRequested -= WaveformView_AiAnalysisRequested;
             advancedAnalysisViewModel.NavigationRequested -= Analysis_NavigationRequested;
             PreviewKeyDown -= MainWindow_PreviewKeyDown;
             PreviewPlot.PreviewMouseWheel -= PreviewPlot_ViewportChanged;
@@ -91,7 +103,29 @@ public partial class MainWindow : Window
             }
             _ = waveformView.DisposeAsync();
             advancedAnalysisView.Dispose();
+            aiWaveformAnalysisWindow?.Close();
         };
+    }
+
+    private void WaveformView_AiAnalysisRequested(
+        object? sender,
+        AiWaveformAnalysisRequestedEventArgs e)
+    {
+        aiWaveformAnalysisViewModel.SetInput(e);
+        if (aiWaveformAnalysisWindow is null)
+        {
+            aiWaveformAnalysisWindow = new AiWaveformAnalysisWindow(aiWaveformAnalysisViewModel)
+            {
+                Owner = this
+            };
+            aiWaveformAnalysisWindow.Closed += (_, _) => aiWaveformAnalysisWindow = null;
+            aiWaveformAnalysisWindow.Show();
+            return;
+        }
+        if (aiWaveformAnalysisWindow.WindowState == WindowState.Minimized)
+            aiWaveformAnalysisWindow.WindowState = WindowState.Normal;
+        aiWaveformAnalysisWindow.Activate();
+        aiWaveformAnalysisWindow.Focus();
     }
 
     private async void PreviewPlot_ViewportChanged(object sender, MouseEventArgs e)

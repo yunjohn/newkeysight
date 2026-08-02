@@ -624,6 +624,9 @@ public sealed class AdvancedAnalysisViewModel(
             Add("刹车完成点", result.BrakeEndWindow?.StartSeconds, "s", result.Verdict,
                 result.BrakeEndNote ?? "", result.BrakeEndWindow?.StartSeconds, null,
                 BrakeMode == BrakeCompletionMode.CurrentZero ? CurrentChannel : SpeedChannel);
+            if (BrakeMode == BrakeCompletionMode.CurrentZero)
+                Add("零电流确认点", result.BrakeEndWindow?.EndSeconds, "s", result.Verdict,
+                    result.BrakeEndNote ?? "", result.BrakeEndWindow?.EndSeconds, null, CurrentChannel);
             if (result.StableSpeedStats is { } stable)
             {
                 Add("稳定平均转速", stable.AverageRpm, "RPM", result.Verdict, "");
@@ -633,7 +636,17 @@ public sealed class AdvancedAnalysisViewModel(
                 Add("稳定转速波动率", stable.FluctuationPercent, "%", result.Verdict, "");
                 Add("稳定完整周期", stable.CompletePeriodCount, "个", result.Verdict, "");
             }
-            lastRun = BuildRun("启动刹车", Results.Select(ToMetric).ToArray());
+            lastRun = BuildRun("启动刹车", Results.Select(ToMetric).ToArray(), new(
+                config.ControlChannel, config.SpeedChannel, config.CurrentChannel, config.EncoderAChannel,
+                config.TargetMode.ToString(), config.TargetValue,
+                config.LowerToleranceRatio * 100, config.UpperToleranceRatio * 100,
+                config.ConsecutivePeriods, config.PulsesPerRevolution, config.ScopeMode.ToString(),
+                config.BrakeMode.ToString(), config.StartupMinimumVoltageStep,
+                config.StartupHoldSeconds * 1000, config.StartupMinimumRiseSeconds * 1000,
+                config.StartupMaximumRiseSeconds * 1000, config.ZeroCurrentThreshold,
+                config.ZeroCurrentFlatThreshold, config.ZeroCurrentHoldSeconds * 1000,
+                config.BrakeLowHoldSeconds * 1000, config.BrakeMinimumFallSeconds * 1000,
+                config.BrakeMaximumFallSeconds * 1000, config.BrakeBacktrackPulses));
             await historyStore.AppendAsync(lastRun, token);
             History.Insert(0, lastRun);
             RefreshHistorySummary();
@@ -1338,15 +1351,15 @@ public sealed class AdvancedAnalysisViewModel(
         if (History.Count == 0) return;
         var dialog = new SaveFileDialog
         {
-            Filter = "CSV 汇总|*.csv",
-            DefaultExt = ".csv",
-            FileName = $"analysis_history_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            Filter = "HTML 性能报告|*.html",
+            DefaultExt = ".html",
+            FileName = $"startup_brake_history_{DateTime.Now:yyyyMMdd_HHmmss}.html"
         };
         if (dialog.ShowDialog() != true) return;
         try
         {
-            await reports.ExportCsvAsync(History, dialog.FileName);
-            Status = $"历史已导出：{dialog.FileName}";
+            await reports.ExportHistoryHtmlAsync(History, dialog.FileName);
+            Status = $"历史性能报告已导出：{dialog.FileName}";
         }
         catch (Exception ex) { Status = FileFailure.Describe(ex, dialog.FileName); }
     }
@@ -1656,10 +1669,14 @@ public sealed class AdvancedAnalysisViewModel(
         IReadOnlyDictionary<string, JsonElement> values, string name, T fallback) where T : struct, Enum =>
         Enum.TryParse(PersistentNullableText(values, name), out T value) ? value : fallback;
 
-    private TestRun BuildRun(string profile, IReadOnlyList<MetricResult> metrics) =>
+    private TestRun BuildRun(
+        string profile,
+        IReadOnlyList<MetricResult> metrics,
+        StartupBrakeRunMetadata? startupBrake = null) =>
         new(string.IsNullOrWhiteSpace(SampleId) ? "sample" : SampleId, profile, TestProfileVersion, metrics,
             InstrumentId: InstrumentId,
-            RunId: Guid.NewGuid().ToString("N"), GeneratedAt: DateTimeOffset.UtcNow);
+            RunId: Guid.NewGuid().ToString("N"), GeneratedAt: DateTimeOffset.UtcNow,
+            StartupBrake: startupBrake);
 
     private async Task RecordInconclusiveAsync(string profile, string reason)
     {

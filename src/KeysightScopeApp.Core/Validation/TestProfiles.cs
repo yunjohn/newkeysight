@@ -31,7 +31,8 @@ public sealed record TestRun(
     int SchemaVersion = 1,
     string AppVersion = ApplicationInfo.Version,
     DateTimeOffset? GeneratedAt = null,
-    string? ArchivePath = null)
+    string? ArchivePath = null,
+    StartupBrakeRunMetadata? StartupBrake = null)
 {
     [JsonIgnore]
     public TestVerdict Status => Metrics.Any(metric => metric.Status == TestVerdict.Fail)
@@ -66,6 +67,32 @@ public sealed record TestRun(
         return metric.Unit.Equals("ms", StringComparison.OrdinalIgnoreCase) ? value : value * 1000;
     }
 }
+
+public sealed record StartupBrakeRunMetadata(
+    string ControlChannel,
+    string SpeedChannel,
+    string CurrentChannel,
+    string? EncoderAChannel,
+    string TargetMode,
+    double TargetValue,
+    double LowerTolerancePercent,
+    double UpperTolerancePercent,
+    int ConsecutivePeriods,
+    int PulsesPerRevolution,
+    string TestMode,
+    string BrakeMode,
+    double StartupMinimumVoltageStep,
+    double StartupHoldMilliseconds,
+    double StartupMinimumRiseMilliseconds,
+    double StartupMaximumRiseMilliseconds,
+    double ZeroCurrentThreshold,
+    double ZeroCurrentFlatThreshold,
+    double ZeroCurrentHoldMilliseconds,
+    double BrakeLowHoldMilliseconds,
+    double BrakeMinimumFallMilliseconds,
+    double BrakeMaximumFallMilliseconds,
+    int BrakeBacktrackPulses,
+    int SchemaVersion = 1);
 
 public static class MetricEvaluator
 {

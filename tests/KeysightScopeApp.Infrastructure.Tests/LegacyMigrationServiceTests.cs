@@ -57,7 +57,7 @@ public sealed class LegacyMigrationServiceTests : IDisposable
 
         AppSettings upgraded = await new AppSettingsStore(paths).LoadAsync();
 
-        Assert.Equal(5, upgraded.SchemaVersion);
+        Assert.Equal(6, upgraded.SchemaVersion);
         Assert.Equal("MAXimum", upgraded.PointsMode);
         Assert.Equal(777, upgraded.RequestedPoints);
     }

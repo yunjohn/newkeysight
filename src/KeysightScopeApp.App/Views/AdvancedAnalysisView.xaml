@@ -38,7 +38,7 @@
 
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <Border Style="{StaticResource PanelBorder}">
+                    <Border Style="{StaticResource CardPanel}">
                         <StackPanel>
                             <TextBlock Text="01 · 信号映射" Style="{StaticResource SectionLabel}"/>
                             <Grid Margin="0,12,0,0">
@@ -67,7 +67,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource PanelBorder}">
+                    <Border Style="{StaticResource CardPanel}">
                         <StackPanel>
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Content="恢复推荐参数"
@@ -128,7 +128,7 @@
                     <RowDefinition Height="12"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Border Style="{StaticResource PanelBorder}">
+                <Border Style="{StaticResource CardPanel}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -203,7 +203,6 @@
                             <Border DockPanel.Dock="Top" Background="{StaticResource PanelHighBrush}"
                                     Padding="12" BorderBrush="{StaticResource OutlineBrush}" BorderThickness="0,0,0,1">
                                 <WrapPanel>
-                                    <Button Content="导出报告" Style="{StaticResource PrimaryButton}" Command="{Binding ExportReportCommand}"/>
                                     <Button Content="归档本次测试" Style="{StaticResource GreenButton}" Command="{Binding ArchiveCommand}"/>
                                     <Button Content="导出启动段" Command="{Binding ExportStartupSegmentCommand}"/>
                                     <Button Content="导出刹车段" Command="{Binding ExportBrakeSegmentCommand}"/>
@@ -232,7 +231,8 @@
                     <TabItem Header="测试历史">
                         <DockPanel>
                             <WrapPanel DockPanel.Dock="Top" Margin="8">
-                                <Button Content="导出全部历史" Command="{Binding ExportHistoryCommand}"/>
+                                <Button Content="导出历史性能报告（HTML）" Style="{StaticResource PrimaryButton}"
+                                        Command="{Binding ExportHistoryCommand}"/>
                                 <Button Content="删除所选" Style="{StaticResource DangerButton}" Command="{Binding DeleteHistoryCommand}"/>
                                 <Button Content="清空历史" Style="{StaticResource DangerButton}" Command="{Binding ClearHistoryCommand}"/>
                                 <TextBlock Text="{Binding HistorySummary}" VerticalAlignment="Center"

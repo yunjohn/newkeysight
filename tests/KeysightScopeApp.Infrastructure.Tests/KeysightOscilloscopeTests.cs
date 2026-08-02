@@ -63,6 +63,36 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task CaptureReadsChannelAndProbeMetadata()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":CHANnel1:UNITs?"] = "AMP";
+        transport.Queries[":CHANnel1:PROBe?"] = "10";
+        transport.Queries[":CHANnel1:PROBe:ID?"] = "N2843A";
+        transport.Queries[":CHANnel1:PROBe:HEAD:TYPE?"] = "PASSIVE";
+        transport.Queries[":CHANnel1:SCALe?"] = "0.5";
+        transport.Queries[":CHANnel1:OFFSet?"] = "-0.25";
+        transport.Queries[":CHANnel1:COUPling?"] = "DC";
+        transport.Queries[":CHANnel1:IMPedance?"] = "ONEMeg";
+        transport.Queries[":CHANnel1:BWLimit?"] = "1";
+        transport.Queries[":CHANnel1:INVert?"] = "0";
+        transport.Queries[":CHANnel1:DISPlay?"] = "1";
+        transport.Queries[":CHANnel1:LABel?"] = "Motor current";
+        transport.Queries[":WAVeform:PREamble?"] = "0,0,3,1,0.5,1,0,0.1,0,0";
+        transport.BinaryQueries[":WAVeform:DATA?"] = [0, 10, 20];
+        var scope = new KeysightOscilloscope(transport);
+
+        WaveformData waveform = await scope.FetchWaveformAsync("CHANnel1", "RAW", 3);
+
+        Assert.Equal("AMP", waveform.Unit);
+        Assert.Equal(10, waveform.Acquisition!.ProbeAttenuation);
+        Assert.Equal("N2843A", waveform.Acquisition.ProbeId);
+        Assert.Equal(.5, waveform.Acquisition.VerticalScale);
+        Assert.True(waveform.Acquisition.Displayed);
+        Assert.Equal("Motor current", waveform.Acquisition.Label);
+    }
+
+    [Fact]
     public async Task SameSessionCanCaptureWaveformTwice()
     {
         var transport = new ScriptedScopeTransport();

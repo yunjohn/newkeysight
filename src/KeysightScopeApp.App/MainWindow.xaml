@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:scottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         Title="Keysight 示波器助手 | C# 版" Width="1500" Height="920"
-        MinWidth="1280" MinHeight="720" Icon="Assets/app.ico">
+        MinWidth="1280" MinHeight="720">
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding LoadCsvCommand}"/>
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding ExportCsvCommand}"/>
@@ -65,6 +65,7 @@
             <!-- Control dock -->
             <Border Grid.Column="0" Background="{DynamicResource PanelBrush}"
                     BorderBrush="{DynamicResource OutlineBrush}" BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -73,39 +74,70 @@
                     </Grid.RowDefinitions>
                     <StackPanel>
                         <TextBlock Text="▣  控制中心" Style="{DynamicResource SectionLabel}"
-                                   Foreground="{DynamicResource TextBrush}"/>
-                        <TextBlock Text="主设备 01" Style="{DynamicResource MonoText}"
-                                   FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,0,16"/>
-                        <TextBlock Text="{Binding DeviceIdentity}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,0,12"/>
-                        <TextBlock Text="资源地址" Style="{DynamicResource SectionLabel}"/>
-                        <ComboBox IsEditable="True" ItemsSource="{Binding VisaResources}"
-                                  Text="{Binding SelectedResource, UpdateSourceTrigger=PropertyChanged}"
-                                  AutomationProperties.Name="VISA 资源地址"/>
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Button Content="连接" Command="{Binding ConnectCommand}" Margin="0,4,4,4"/>
-                            <Button Grid.Column="1" Content="断开" Command="{Binding DisconnectCommand}" Margin="4"/>
-                        </Grid>
-                        <Button Content="↻  刷新资源" Command="{Binding RefreshResourcesCommand}"
-                                Margin="0,8,0,0"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Button Content="隐藏资源" Command="{Binding HideResourceCommand}" Margin="0,4,4,4"/>
-                            <Button Grid.Column="1" Content="恢复隐藏" Command="{Binding RestoreResourcesCommand}" Margin="4"/>
-                        </Grid>
+                                   Foreground="{DynamicResource TextBrush}" Margin="0,0,0,12"/>
+                        <Border Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="●  连接状态" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
+                                <TextBlock Text="主设备 01" Style="{DynamicResource MonoText}"
+                                           FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                <TextBlock Text="{Binding DeviceIdentity}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource MutedTextBrush}" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="⌁  设备资源" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
+                                <TextBlock Text="资源地址" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                <ComboBox IsEditable="True" ItemsSource="{Binding VisaResources}"
+                                          Text="{Binding SelectedResource, UpdateSourceTrigger=PropertyChanged}"
+                                          AutomationProperties.Name="VISA 资源地址" MinHeight="36" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <Button Content="连接" Command="{Binding ConnectCommand}" MinHeight="36" Margin="0,4,4,4"/>
+                                    <Button Grid.Column="1" Content="断开" Command="{Binding DisconnectCommand}" MinHeight="36" Margin="4"/>
+                                </Grid>
+                                <Button Content="刷新资源" Command="{Binding RefreshResourcesCommand}"
+                                        MinHeight="36" Margin="0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <Button Content="隐藏资源" Command="{Binding HideResourceCommand}" MinHeight="36" Margin="0,4,4,0"/>
+                                    <Button Grid.Column="1" Content="恢复隐藏" Command="{Binding RestoreResourcesCommand}" MinHeight="36" Margin="4,4,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="2">
-                        <Button Content="{Binding RunStopText}" Command="{Binding RunStopCommand}"
-                                Style="{DynamicResource PrimaryButton}" Height="40" Margin="0,4"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Button Content="载入 CSV" Command="{Binding LoadCsvCommand}" Margin="0,4,4,4"/>
-                            <Button Grid.Column="1" Content="取消" Command="{Binding CancelCommand}" Margin="4"/>
-                        </Grid>
-                    </StackPanel>
+                    <Border Grid.Row="1" Style="{DynamicResource CardPanel}" VerticalAlignment="Top">
+                        <StackPanel>
+                            <TextBlock Text="▣  截图工具" Style="{DynamicResource SectionLabel}"
+                                       Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
+                            <TextBlock Text="截图前缀" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding ScreenshotPrefix, UpdateSourceTrigger=PropertyChanged}"
+                                     MinHeight="36" Margin="0,0,0,8"/>
+                            <Button Content="截图并复制" Command="{Binding QuickScreenshotCommand}"
+                                    Style="{DynamicResource PrimaryButton}" MinHeight="36" Margin="0,4"/>
+                            <Button Content="另存设备截图" Command="{Binding DeviceScreenshotCommand}"
+                                    MinHeight="36" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="2" Style="{DynamicResource CardPanel}">
+                        <StackPanel>
+                            <TextBlock Text="▶  快捷操作" Style="{DynamicResource SectionLabel}"
+                                       Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
+                            <Button Content="{Binding RunStopText}" Command="{Binding RunStopCommand}"
+                                    Style="{DynamicResource PrimaryButton}" Height="40" Margin="0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <Button Content="载入 CSV" Command="{Binding LoadCsvCommand}" MinHeight="36" Margin="0,4,4,0"/>
+                                <Button Grid.Column="1" Content="取消" Command="{Binding CancelCommand}" MinHeight="36" Margin="4,4,0,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </Grid>
+                </ScrollViewer>
             </Border>
 
             <!-- Dashboard -->
@@ -115,81 +147,94 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Style="{DynamicResource PanelBorder}" Padding="16">
-                    <Grid>
+                <Border Style="{DynamicResource PanelBorder}" Padding="12">
+                    <Grid HorizontalAlignment="Stretch">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.1*"/>
-                            <ColumnDefinition Width="1.15*"/>
-                            <ColumnDefinition Width="1.25*"/>
-                            <ColumnDefinition Width=".72*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Text="◫  采集设置" Style="{DynamicResource SectionLabel}"
-                                       Foreground="{DynamicResource CyanBrush}"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,8,0">
-                                    <TextBlock Text="采样类型" Style="{DynamicResource SectionLabel}"/>
-                                    <ComboBox SelectedValue="{Binding AcquireType}" SelectedValuePath="Tag">
-                                        <ComboBoxItem Content="普通" Tag="NORMal"/><ComboBoxItem Content="平均" Tag="AVERage"/>
-                                        <ComboBoxItem Content="高分辨率" Tag="HRESolution"/><ComboBoxItem Content="峰值检测" Tag="PEAK"/>
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                    <TextBlock Text="点数模式" Style="{DynamicResource SectionLabel}"/>
-                                    <ComboBox SelectedValue="{Binding PointsMode}" SelectedValuePath="Tag">
-                                        <ComboBoxItem Content="普通" Tag="NORMal"/><ComboBoxItem Content="最大" Tag="MAXimum"/>
-                                        <ComboBoxItem Content="原始" Tag="RAW"/>
-                                    </ComboBox>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
+                        <Border Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="◫  采集设置" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,14"/>
+                                <TextBlock Text="采样类型" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                <ComboBox SelectedValue="{Binding AcquireType}" SelectedValuePath="Tag"
+                                          MinHeight="36" Margin="0,0,0,12">
+                                    <ComboBoxItem Content="普通" Tag="NORMal"/><ComboBoxItem Content="平均" Tag="AVERage"/>
+                                    <ComboBoxItem Content="高分辨率" Tag="HRESolution"/><ComboBoxItem Content="峰值检测" Tag="PEAK"/>
+                                </ComboBox>
+                                <TextBlock Text="点数模式" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                <ComboBox SelectedValue="{Binding PointsMode}" SelectedValuePath="Tag"
+                                          MinHeight="36" Margin="0">
+                                    <ComboBoxItem Content="普通" Tag="NORMal"/><ComboBoxItem Content="最大" Tag="MAXimum"/>
+                                    <ComboBoxItem Content="原始" Tag="RAW"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
 
-                        <StackPanel Grid.Column="1" Margin="16,0" >
-                            <TextBlock Text="☷  采集参数" Style="{DynamicResource SectionLabel}"
-                                       Foreground="{DynamicResource CyanBrush}"/>
-                            <TextBlock Text="采样点数" Style="{DynamicResource SectionLabel}"/>
-                            <TextBox Text="{Binding RequestedPoints, UpdateSourceTrigger=PropertyChanged}"
-                                     Foreground="{DynamicResource GreenBrush}" FontFamily="JetBrains Mono, Consolas"/>
-                            <TextBlock Text="普通模式使用输入点数；最大/原始模式自动探测设备可用点数"
-                                       Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
-                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
-                            <WrapPanel>
-                                <CheckBox Content="CH1" IsChecked="{Binding Channel1}"/>
-                                <CheckBox Content="CH2" IsChecked="{Binding Channel2}"/>
-                                <CheckBox Content="CH3" IsChecked="{Binding Channel3}"/>
-                                <CheckBox Content="CH4" IsChecked="{Binding Channel4}"/>
-                            </WrapPanel>
-                            <CheckBox Content="完整深存储（按当前模式自动探测）"
-                                      IsChecked="{Binding FullDeepMemory}"/>
-                        </StackPanel>
+                        <Border Grid.Column="1" Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="☷  采集参数" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,14"/>
+                                <TextBlock Text="采样点数" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding RequestedPoints, UpdateSourceTrigger=PropertyChanged}"
+                                         Foreground="{DynamicResource GreenBrush}" FontFamily="JetBrains Mono, Consolas"
+                                         MinHeight="36" Margin="0,0,0,8"/>
+                                <TextBlock Text="普通模式使用输入点数；最大/原始模式自动探测设备可用点数"
+                                           Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
+                                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <WrapPanel Margin="0,0,0,4">
+                                    <CheckBox Content="CH1" IsChecked="{Binding Channel1}"/>
+                                    <CheckBox Content="CH2" IsChecked="{Binding Channel2}"/>
+                                    <CheckBox Content="CH3" IsChecked="{Binding Channel3}"/>
+                                    <CheckBox Content="CH4" IsChecked="{Binding Channel4}"/>
+                                </WrapPanel>
+                                <CheckBox Content="完整深存储（按当前模式自动探测）"
+                                          IsChecked="{Binding FullDeepMemory}"/>
+                            </StackPanel>
+                        </Border>
 
-                        <StackPanel Grid.Column="2" Margin="16,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                <Button Content="运行" Command="{Binding RunCommand}" Style="{DynamicResource PrimaryButton}" Margin="0,4,4,4"/>
-                                <Button Grid.Column="1" Content="单次" Command="{Binding SingleCommand}" Margin="4"/>
-                                <Button Grid.Column="2" Content="停止" Command="{Binding StopCommand}" Style="{DynamicResource DangerButton}" Margin="4"/>
-                            </Grid>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                <Button Content="⇩ 获取波形" Command="{Binding CaptureCommand}" Margin="0,4,4,0"/>
-                                <Button Grid.Column="1" Content="▣ 应用通道" Command="{Binding ApplyChannelDisplayCommand}" Margin="4,4,0,0"/>
-                            </Grid>
-                        </StackPanel>
+                        <Border Grid.Column="2" Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="▶  采集操作" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,10"/>
+                                <Grid Margin="0,58,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                    <Button Content="运行" Command="{Binding RunCommand}" Style="{DynamicResource PrimaryButton}"
+                                            MinHeight="36" Margin="0,4,4,4"/>
+                                    <Button Grid.Column="1" Content="单次" Command="{Binding SingleCommand}"
+                                            MinHeight="36" Margin="4"/>
+                                    <Button Grid.Row="1" Content="停止" Command="{Binding StopCommand}"
+                                            Style="{DynamicResource DangerButton}" MinHeight="36" Margin="0,4,4,4"/>
+                                    <Button Grid.Row="1" Grid.Column="1" Content="获取波形" Command="{Binding CaptureCommand}"
+                                            MinHeight="36" Margin="4"/>
+                                    <Button Grid.Row="2" Grid.ColumnSpan="2" Content="应用通道显示"
+                                            Command="{Binding ApplyChannelDisplayCommand}" MinHeight="36" Margin="0,4,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                        <StackPanel Grid.Column="3" Margin="16,0,0,0">
-                            <TextBlock Text="设备状态" Style="{DynamicResource SectionLabel}"/>
-                            <TextBlock Text="{Binding TriggerStatus}" Style="{DynamicResource ReadoutText}"
-                                       Foreground="{DynamicResource GreenBrush}" FontSize="15"/>
-                            <TextBlock Text="{Binding AcquisitionStateText, StringFormat=采集：{0}}"
-                                       Foreground="{DynamicResource CyanBrush}"/>
-                            <TextBlock Text="{Binding TimebaseMode, StringFormat=时基：{0}}"
-                                       Style="{DynamicResource MonoText}" FontSize="11" Margin="0,8,0,0"/>
-                            <Button Content="读取状态" Command="{Binding ReadDeviceStatusCommand}" Margin="0,8,0,0"/>
-                            <Button Content="切换 MAIN / ROLL" Command="{Binding ToggleTimebaseModeCommand}"/>
-                            <Button Content="读取设备错误" Command="{Binding ReadSystemErrorsCommand}"/>
-                        </StackPanel>
+                        <Border Grid.Column="3" Style="{DynamicResource CardPanel}">
+                            <StackPanel>
+                                <TextBlock Text="●  设备状态" Style="{DynamicResource SectionLabel}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,10"/>
+                                <TextBlock Text="{Binding TriggerStatus}" Style="{DynamicResource ReadoutText}"
+                                           Foreground="{DynamicResource GreenBrush}" FontSize="15"/>
+                                <TextBlock Text="{Binding AcquisitionStateText, StringFormat=采集：{0}}"
+                                           Foreground="{DynamicResource CyanBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="{Binding TimebaseMode, StringFormat=时基：{0}}"
+                                           Style="{DynamicResource MonoText}" FontSize="11" Margin="0,5,0,8"/>
+                                <Button Content="读取状态" Command="{Binding ReadDeviceStatusCommand}"
+                                        MinHeight="36" Margin="0,4"/>
+                                <Button Content="切换 MAIN / ROLL" Command="{Binding ToggleTimebaseModeCommand}"
+                                        MinHeight="36" Margin="0,4"/>
+                                <Button Content="读取设备错误" Command="{Binding ReadSystemErrorsCommand}"
+                                        MinHeight="36" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
 
@@ -297,11 +342,6 @@
                                         <Button Grid.Column="1" Content="应用" Command="{Binding ApplyVerticalCommand}"
                                                 Style="{DynamicResource PrimaryButton}" Margin="4"/>
                                     </Grid>
-                                    <TextBlock Text="截图前缀" Style="{DynamicResource SectionLabel}"/>
-                                    <TextBox Text="{Binding ScreenshotPrefix, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Content="截图并复制" Command="{Binding QuickScreenshotCommand}"
-                                            Style="{DynamicResource PrimaryButton}"/>
-                                    <Button Content="另存设备截图" Command="{Binding DeviceScreenshotCommand}"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -329,10 +369,10 @@
               <Grid Margin="24,20">
                   <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="1.1*"/>
-                      <ColumnDefinition Width="16"/>
+                      <ColumnDefinition Width="0"/>
                       <ColumnDefinition Width="2*"/>
                   </Grid.ColumnDefinitions>
-                  <Border Style="{DynamicResource PanelBorder}">
+                  <Border Style="{DynamicResource CardPanel}">
                       <TabControl>
                           <TabItem Header="最近波形">
                               <DockPanel Margin="8">
@@ -369,7 +409,7 @@
                           </TabItem>
                       </TabControl>
                   </Border>
-                  <Border Grid.Column="2" Style="{DynamicResource PanelBorder}">
+                  <Border Grid.Column="2" Style="{DynamicResource CardPanel}">
                       <DockPanel>
                           <TextBlock DockPanel.Dock="Top" Text="操作记录" Style="{DynamicResource SectionLabel}"
                                      Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
@@ -387,6 +427,9 @@
                       </DockPanel>
                   </Border>
               </Grid>
+          </TabItem>
+          <TabItem Header="AI 设置">
+              <ContentControl x:Name="AiAssistantHost"/>
           </TabItem>
         </TabControl>
     </DockPanel>

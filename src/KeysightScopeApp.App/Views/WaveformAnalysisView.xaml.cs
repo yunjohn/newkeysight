@@ -15,9 +15,22 @@ using Microsoft.Win32;
 
 namespace KeysightScopeApp.App.Views;
 
+public sealed class AiWaveformAnalysisRequestedEventArgs(
+    WaveformBundle bundle,
+    IReadOnlyList<string> visibleChannels,
+    TimeRange visibleRange,
+    string? sourcePath) : EventArgs
+{
+    public WaveformBundle Bundle { get; } = bundle;
+    public IReadOnlyList<string> VisibleChannels { get; } = visibleChannels;
+    public TimeRange VisibleRange { get; } = visibleRange;
+    public string? SourcePath { get; } = sourcePath;
+}
+
 public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
 {
     public event EventHandler? RefreshWaveformRequested;
+    public event EventHandler<AiWaveformAnalysisRequestedEventArgs>? AiAnalysisRequested;
 
     private sealed record QuickWaveformEvent(string Channel, string Kind, double Time)
     {
@@ -108,6 +121,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         Plot.UserInputProcessor.RemoveAll<
             ScottPlot.Interactivity.UserActionResponses.SingleClickContextMenu>();
         Plot.MouseMove += Plot_MouseMove;
+        Plot.MouseLeave += Plot_MouseLeave;
         Plot.PreviewMouseLeftButtonDown += Plot_MouseLeftButtonDown;
         Plot.PreviewMouseLeftButtonUp += Plot_MouseLeftButtonUp;
         Plot.MouseRightButtonUp += Plot_MouseRightButtonUp;
@@ -128,6 +142,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         rendering?.Cancel();
         await SaveWorkspaceAsync();
         Plot.MouseMove -= Plot_MouseMove;
+        Plot.MouseLeave -= Plot_MouseLeave;
         Plot.PreviewMouseLeftButtonDown -= Plot_MouseLeftButtonDown;
         Plot.PreviewMouseLeftButtonUp -= Plot_MouseLeftButtonUp;
         Plot.MouseRightButtonUp -= Plot_MouseRightButtonUp;
@@ -497,6 +512,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         Point point = e.GetPosition(Plot);
         ScottPlot.Coordinates coordinates = PlotCoordinatesFromDip(point);
         lastPointerCoordinates = coordinates;
+        UpdatePointerReadout(point, coordinates);
         if (channelMoveStart is Point moveStart && e.LeftButton == MouseButtonState.Pressed)
         {
             ScottPlot.Coordinates origin = PlotCoordinatesFromDip(moveStart);
@@ -531,17 +547,21 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         }
         if (draggingCursor is not null && e.LeftButton == MouseButtonState.Pressed)
         {
+            double cursorX = coordinates.X;
+            EdgeKind snappedEdge = EdgeKind.Rising;
+            bool snappedToEdge = draggingCursor is "A" or "B" &&
+                TrySnapCursorNearEdge(coordinates.X, out cursorX, out snappedEdge);
             if (draggingCursor == "A")
             {
-                cursorA = coordinates.X;
-                if (cursorALine is not null) cursorALine.X = coordinates.X;
+                cursorA = cursorX;
+                if (cursorALine is not null) cursorALine.X = cursorX;
             }
             else
             {
                 if (draggingCursor == "B")
                 {
-                    cursorB = coordinates.X;
-                    if (cursorBLine is not null) cursorBLine.X = coordinates.X;
+                    cursorB = cursorX;
+                    if (cursorBLine is not null) cursorBLine.X = cursorX;
                 }
                 else if (draggingCursor == "VA")
                 {
@@ -556,6 +576,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             }
             Plot.Refresh();
             UpdateCursorHandles();
+            if (snappedToEdge)
+                CursorReadout.Text = $"游标 {draggingCursor} 已吸附到活动通道的{EdgeLabel(snappedEdge)}。";
             return;
         }
         string? hoverCursor = CursorHitAt(point);
@@ -585,6 +607,44 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             .Select(item => $"{ChannelDisplayName.Format(item.Channel)}: {WaveformAnalysis.Interpolate(item, coordinates.X):G6} {item.Unit}");
         CursorReadout.Text = $"时间={coordinates.X:G8} 秒   {string.Join("   ", values)}";
     }
+
+    private void UpdatePointerReadout(Point point, ScottPlot.Coordinates coordinates)
+    {
+        if (bundle is null)
+        {
+            PointerReadoutPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        string[] values = bundle.Channels.Values
+            .Where(IsChannelVisible)
+            .Where(waveform => coordinates.X >= waveform.X[0] && coordinates.X <= waveform.X[^1])
+            .Select(waveform =>
+                $"{ChannelDisplayName.Format(waveform.Channel)}  " +
+                $"{WaveformAnalysis.Interpolate(waveform, coordinates.X):G7} {waveform.Unit}")
+            .ToArray();
+        if (values.Length == 0)
+        {
+            PointerReadoutPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        PointerReadout.Text = $"时间  {coordinates.X:G9} s\n{string.Join("\n", values)}";
+        PointerReadoutPanel.Visibility = Visibility.Visible;
+        PointerReadoutPanel.Measure(new Size(360, double.PositiveInfinity));
+        Size size = PointerReadoutPanel.DesiredSize;
+        double left = point.X + 16;
+        double top = point.Y + 18;
+        if (left + size.Width > Plot.ActualWidth - 4)
+            left = point.X - size.Width - 16;
+        if (top + size.Height > Plot.ActualHeight - 4)
+            top = point.Y - size.Height - 16;
+        Canvas.SetLeft(PointerReadoutPanel, Math.Max(4, left));
+        Canvas.SetTop(PointerReadoutPanel, Math.Max(4, top));
+    }
+
+    private void Plot_MouseLeave(object sender, MouseEventArgs e) =>
+        PointerReadoutPanel.Visibility = Visibility.Collapsed;
 
     private void ResetView_Click(object sender, RoutedEventArgs e) { Plot.Plot.Axes.AutoScale(); Plot.Refresh(); }
     private void RefreshWaveform_Click(object sender, RoutedEventArgs e) =>
@@ -654,6 +714,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             ActiveWaveform() is { } snapWaveform &&
             WaveformAnalysis.SnapToEdge(snapWaveform, x, EdgeKind.Rising) is { } snapped)
             x = snapped.TimeSeconds;
+        else if (armedCursor is not ("VA" or "VB"))
+            _ = TrySnapCursorNearEdge(x, out x, out _);
         if (armedCursor is "VA" or "VB")
         {
             double y = PlotCoordinatesFromDip(point).Y;
@@ -730,17 +792,36 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             case "CursorB": PlaceCursorAt("B"); break;
             case "Pulse": LockWindow_Click(new Button { Tag = "Pulse" }, e); break;
             case "Period": LockWindow_Click(new Button { Tag = "Period" }, e); break;
+            case "AiAnalysis": RequestAiAnalysis(); break;
             case "Annotate": AddAnnotation_Click(this, e); break;
             case "Reset": ResetView_Click(this, e); break;
             case "Export": ExportPng_Click(this, e); break;
         }
     }
 
+    private void RequestAiAnalysis()
+    {
+        if (bundle is null) return;
+        ScottPlot.AxisLimits limits = Plot.Plot.Axes.GetLimits();
+        string[] visibleChannels = bundle.Channels.Values.Where(IsChannelVisible)
+            .Select(item => item.Channel).ToArray();
+        if (visibleChannels.Length == 0) return;
+        double minimum = Math.Min(limits.Left, limits.Right);
+        double maximum = Math.Max(limits.Left, limits.Right);
+        AiAnalysisRequested?.Invoke(this, new AiWaveformAnalysisRequestedEventArgs(
+            bundle,
+            visibleChannels,
+            new TimeRange(minimum, maximum),
+            waveformPath));
+    }
+
     private void PlaceCursorAt(string cursor)
     {
         if (lastPointerCoordinates is null) return;
-        if (cursor == "A") cursorA = lastPointerCoordinates.Value.X;
-        else cursorB = lastPointerCoordinates.Value.X;
+        double x = lastPointerCoordinates.Value.X;
+        _ = TrySnapCursorNearEdge(x, out x, out _);
+        if (cursor == "A") cursorA = x;
+        else cursorB = x;
         NormalizeCursorOrder();
         _ = RenderAsync(useCurrentView: true);
     }
@@ -921,6 +1002,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             return;
         Point point = e.GetPosition(Plot);
         double x = PlotCoordinatesFromDip(point).X;
+        bool snappedToEdge = TrySnapCursorNearEdge(x, out x, out EdgeKind snappedEdge);
         if (draggingCursor == "A")
         {
             cursorA = x;
@@ -933,8 +1015,43 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         }
         Plot.Refresh();
         UpdateCursorHandles();
+        if (snappedToEdge)
+            CursorReadout.Text = $"游标 {draggingCursor} 已吸附到活动通道的{EdgeLabel(snappedEdge)}。";
         e.Handled = true;
     }
+
+    private bool TrySnapCursorNearEdge(
+        double hint,
+        out double snappedTime,
+        out EdgeKind snappedEdge)
+    {
+        const double snapDistanceDip = 14;
+        snappedTime = hint;
+        snappedEdge = EdgeKind.Rising;
+        WaveformData? waveform = ActiveWaveform();
+        if (waveform is null) return false;
+
+        var candidates = new List<(double Time, EdgeKind Edge, double Distance)>();
+        foreach (EdgeKind edge in Enum.GetValues<EdgeKind>())
+        {
+            if (WaveformAnalysis.SnapToEdge(waveform, hint, edge) is not { } candidate)
+                continue;
+            double hintX = PlotPixelToDip(Plot.Plot.GetPixel(new(hint, 0))).X;
+            double candidateX = PlotPixelToDip(Plot.Plot.GetPixel(new(candidate.TimeSeconds, 0))).X;
+            candidates.Add((candidate.TimeSeconds, edge, Math.Abs(candidateX - hintX)));
+        }
+
+        (double Time, EdgeKind Edge, double Distance)? nearest = candidates.Count == 0
+            ? null
+            : candidates.MinBy(candidate => candidate.Distance);
+        if (nearest is not { Distance: <= snapDistanceDip }) return false;
+        snappedTime = nearest.Value.Time;
+        snappedEdge = nearest.Value.Edge;
+        return true;
+    }
+
+    private static string EdgeLabel(EdgeKind edge) =>
+        edge == EdgeKind.Rising ? "上升沿" : "下降沿";
 
     private void CursorHandle_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {

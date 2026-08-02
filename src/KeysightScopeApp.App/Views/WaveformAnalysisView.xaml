@@ -60,6 +60,15 @@
                             IsHitTestVisible="False"
                             Background="#2600F5FF" BorderBrush="{StaticResource CyanBrush}"
                             BorderThickness="1"/>
+                    <Border x:Name="PointerReadoutPanel" Visibility="Collapsed"
+                            IsHitTestVisible="False" MaxWidth="360" Padding="10,7"
+                            CornerRadius="4" Background="#EE111316"
+                            BorderBrush="{StaticResource CyanBrush}" BorderThickness="1">
+                        <TextBlock x:Name="PointerReadout" Foreground="{StaticResource TextBrush}"
+                                   FontFamily="JetBrains Mono, Cascadia Mono, Consolas"
+                                   FontSize="11" TextWrapping="Wrap"
+                                   AutomationProperties.Name="鼠标指针数据读数"/>
+                    </Border>
                     <Border x:Name="CursorAHandle" Width="28" Height="24" CornerRadius="3"
                             Visibility="Collapsed" Background="#FFFFB300" Cursor="SizeWE"
                             MouseLeftButtonDown="CursorHandle_MouseLeftButtonDown"
@@ -101,7 +110,7 @@
                         <TextBlock Text="通道与测量控制台" Margin="0,4,0,16"
                                    Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
 
-                        <Border Style="{StaticResource PanelBorder}">
+                        <Border Style="{StaticResource CardPanel}">
                             <StackPanel>
                                 <TextBlock Text="通道显示" Style="{StaticResource SectionLabel}"/>
                                 <UniformGrid Columns="2" Margin="0,12,0,4">
@@ -125,7 +134,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource PanelBorder}">
+                        <Border Style="{StaticResource CardPanel}">
                             <StackPanel>
                                 <TextBlock Text="游标与测量" Style="{StaticResource SectionLabel}"/>
                                 <ComboBox x:Name="MeasurementScope" SelectedIndex="0" Margin="0,8,0,4"
@@ -155,6 +164,7 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource CardPanel}">
                         <Expander Header="波形测量" IsExpanded="True">
                             <StackPanel Margin="0,8,0,0">
                                 <Grid>
@@ -211,7 +221,9 @@
                                            Margin="0,6,0,0"/>
                             </StackPanel>
                         </Expander>
+                        </Border>
 
+                        <Border Style="{StaticResource CardPanel}">
                         <Expander Header="书签与标注" IsExpanded="True">
                             <StackPanel Margin="0,8,0,0">
                                 <ComboBox x:Name="BookmarkList" SelectionChanged="BookmarkList_SelectionChanged"/>
@@ -222,7 +234,9 @@
                                 <Button Content="删除末条标注" Click="RemoveAnnotation_Click"/>
                             </StackPanel>
                         </Expander>
+                        </Border>
 
+                        <Border Style="{StaticResource CardPanel}">
                         <Expander Header="边沿与相位诊断" IsExpanded="False">
                             <StackPanel Margin="0,8,0,0">
                                 <ComboBox x:Name="QuickEvents" ToolTip="最小值、最大值和前 50 个边沿"
@@ -236,7 +250,9 @@
                                 <Button Content="导出相位诊断" Click="ExportPhase_Click"/>
                             </StackPanel>
                         </Expander>
+                        </Border>
 
+                        <Border Style="{StaticResource CardPanel}">
                         <Expander Header="参考波形与截图" IsExpanded="False">
                             <StackPanel Margin="0,8,0,0">
                                 <UniformGrid Columns="2">
@@ -247,6 +263,7 @@
                                 <CheckBox x:Name="ScreenshotIncludeOverlays" Content="纯图包含覆盖层" IsChecked="True"/>
                             </StackPanel>
                         </Expander>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -270,6 +287,8 @@
                     <Button Content="锁定最近脉冲" Tag="Pulse" Click="PopupAction_Click"
                             Style="{StaticResource WaveformMenuItemButton}"/>
                     <Button Content="锁定最近周期" Tag="Period" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="AI 分析波形" Tag="AiAnalysis" Click="PopupAction_Click"
                             Style="{StaticResource WaveformMenuItemButton}"/>
                     <Button Content="添加标注" Tag="Annotate" Click="PopupAction_Click"
                             Style="{StaticResource WaveformMenuItemButton}"/>

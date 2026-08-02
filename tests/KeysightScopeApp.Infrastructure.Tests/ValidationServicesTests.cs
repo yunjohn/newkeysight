@@ -79,6 +79,42 @@ public sealed class ValidationServicesTests
     }
 
     [Fact]
+    public async Task HistoryHtmlContainsConfigurationSummaryAndDetailedStartupBrakeRows()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var metadata = new StartupBrakeRunMetadata(
+                "CHANnel1", "CHANnel2", "CHANnel3", null, "Rpm", 4200, 0, 5, 1, 1,
+                "Full", "CurrentZero", 1, 1, 0, 15, .5, .03, 2, 2, 0, 15, 8);
+            var run = new TestRun("W5E-A", "启动刹车", "1", [
+                new("启动时间", TestVerdict.Pass, 198.1, "ms"),
+                new("刹车时间", TestVerdict.Pass, 276.8, "ms"),
+                new("启动点", TestVerdict.Pass, -7.99, "s"),
+                new("达速点", TestVerdict.Pass, -7.79, "s"),
+                new("刹车点", TestVerdict.Pass, -6.97, "s"),
+                new("刹车完成点", TestVerdict.Pass, -6.69, "s", Reason: "电流归零可信度：高"),
+                new("零电流确认点", TestVerdict.Pass, -6.68, "s"),
+                new("稳定平均转速", TestVerdict.Pass, 4200, "RPM"),
+                new("稳定转速峰峰值", TestVerdict.Pass, 72, "RPM"),
+                new("稳定转速波动率", TestVerdict.Pass, 1.7, "%")
+            ], StartupBrake: metadata);
+            string target = Path.Combine(directory, "history.html");
+
+            await new ReportExporter().ExportHistoryHtmlAsync([run], target);
+
+            string html = await File.ReadAllTextAsync(target);
+            Assert.Contains("启动/刹车历史性能报告", html);
+            Assert.Contains("达速目标值", html);
+            Assert.Contains("4200", html);
+            Assert.Contains("零电流确认", html);
+            Assert.Contains("电流归零可信度：高", html);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
     public async Task BatchCancellationStopsFurtherRuns()
     {
         using var cancellation = new CancellationTokenSource();

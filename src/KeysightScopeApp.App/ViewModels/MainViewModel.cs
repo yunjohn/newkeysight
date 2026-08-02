@@ -52,7 +52,8 @@ public enum MainWorkspaceTab
     Console,
     Waveform,
     StartupBrake,
-    History
+    History,
+    AiAssistant
 }
 
 public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
