@@ -75,6 +75,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private bool autoMeasuring;
     private bool measurementBusy;
     private CancellationTokenSource? autoMeasurementCancellation;
+    private CancellationTokenSource? channelDisplaySyncCancellation;
     private string measurementChannel = "CHANnel1";
     private double measurementIntervalSeconds = 1;
     private string measurementStatus = "自动测量：未启动";
@@ -709,6 +710,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 Changed(nameof(DeviceIdentity));
                 Changed(nameof(IsConnected));
                 Status = $"已连接：{identity.Manufacturer} {identity.Model}，序列号 {identity.SerialNumber}";
+                await SynchronizeChannelDisplaysAsync(instrument, token);
                 await AddHistoryAsync("连接", Status, SelectedResource);
             }
             catch
@@ -717,11 +719,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 throw;
             }
         });
+        if (scope is not null) StartChannelDisplaySynchronization();
     }
 
     private async Task DisconnectAsync()
     {
         StopAutoMeasurement();
+        StopChannelDisplaySynchronization();
         VisaScopeTransport? transport = scopeTransport;
         scope = null;
         scopeTransport = null;
@@ -1022,6 +1026,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 (Channel3, "CHANnel3"), (Channel4, "CHANnel4")
             })
                 await instrument.SetChannelDisplayAsync(channel, enabled, token);
+            await SynchronizeChannelDisplaysAsync(instrument, token);
             Status = "四个通道的显示开关已应用到设备。";
             await AddHistoryAsync("通道开关", Status, SelectedResource);
         });
@@ -1204,8 +1209,63 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             TimebaseMode = operating.TimebaseMode;
             AcquireType = operating.AcquireType;
             TriggerStatus = triggerStatus;
+            await SynchronizeChannelDisplaysAsync(instrument, token);
             Status = $"设备状态：时基 {TimebaseMode}，采集 {AcquireType}，触发 {TriggerStatus}";
         });
+    }
+
+    private async Task SynchronizeChannelDisplaysAsync(
+        KeysightOscilloscope instrument,
+        CancellationToken token)
+    {
+        bool[] displayed = new bool[4];
+        for (int index = 0; index < displayed.Length; index++)
+            displayed[index] = await instrument.GetChannelDisplayAsync($"CHANnel{index + 1}", token);
+        Channel1 = displayed[0];
+        Channel2 = displayed[1];
+        Channel3 = displayed[2];
+        Channel4 = displayed[3];
+    }
+
+    private void StartChannelDisplaySynchronization()
+    {
+        StopChannelDisplaySynchronization();
+        channelDisplaySyncCancellation = new();
+        _ = RunChannelDisplaySynchronizationAsync(channelDisplaySyncCancellation.Token);
+    }
+
+    private async Task RunChannelDisplaySynchronizationAsync(CancellationToken token)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                KeysightOscilloscope? instrument = scope;
+                if (instrument is null) break;
+                if (IsBusy || measurementBusy || IsAutoMeasuring) continue;
+                try
+                {
+                    await SynchronizeChannelDisplaysAsync(instrument, token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch
+                {
+                    // 后台联动失败不打断当前操作；下一轮继续尝试。
+                }
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    private void StopChannelDisplaySynchronization()
+    {
+        channelDisplaySyncCancellation?.Cancel();
+        channelDisplaySyncCancellation?.Dispose();
+        channelDisplaySyncCancellation = null;
     }
 
     private async Task ApplyTriggerAsync()
@@ -1343,6 +1403,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         StopAutoMeasurement();
+        StopChannelDisplaySynchronization();
         operation?.Cancel();
         VisaScopeTransport? transport = scopeTransport;
         scopeTransport = null;

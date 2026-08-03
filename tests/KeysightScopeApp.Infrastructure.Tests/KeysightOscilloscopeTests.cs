@@ -213,6 +213,23 @@ public sealed class KeysightOscilloscopeTests
         Assert.Contains(("write", ":ACQuire:TYPE AVERage"), transport.Commands);
     }
 
+    [Theory]
+    [InlineData("ON", true)]
+    [InlineData("OFF", false)]
+    [InlineData("+1", true)]
+    [InlineData("0", false)]
+    public async Task ReadsChannelDisplayState(string response, bool expected)
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":CHANnel3:DISPlay?"] = response;
+        var scope = new KeysightOscilloscope(transport);
+
+        bool displayed = await scope.GetChannelDisplayAsync("CHANnel3");
+
+        Assert.Equal(expected, displayed);
+        Assert.Contains(("query", ":CHANnel3:DISPlay?"), transport.Commands);
+    }
+
     [Fact]
     public async Task SingleWaitTemporarilyLeavesRollModeAndRestoresItWhenTriggered()
     {

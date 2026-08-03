@@ -24,6 +24,18 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         await transport.WriteAsync($":{channel}:DISPlay {(enabled ? "ON" : "OFF")}", token);
     }
 
+    public async Task<bool> GetChannelDisplayAsync(
+        string channel,
+        CancellationToken token = default)
+    {
+        ValidateChannel(channel);
+        string response = (await transport.QueryAsync($":{channel}:DISPlay?", token))
+            .Trim().Trim('"');
+        if (response.Equals("ON", StringComparison.OrdinalIgnoreCase)) return true;
+        if (response.Equals("OFF", StringComparison.OrdinalIgnoreCase)) return false;
+        return ParseDouble(response) != 0;
+    }
+
     public Task RunAsync(CancellationToken token = default) =>
         transport.WriteAsync(":RUN", token);
 
