@@ -766,15 +766,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
                 new Progress<double>(value => Progress = value * 100),
                 token);
             Bundle = result.Bundle;
+            string warningSummary = result.Warnings.Count == 0
+                ? ""
+                : $"；提示：{string.Join("；", result.Warnings)}";
             WaveformIntegrityStatus =
-                $"波形完整性：{Bundle.Channels.Count} 通道，共 {Bundle.Channels.Values.Sum(item => item.Count):N0} 点，校验通过";
+                $"波形完整性：{Bundle.Channels.Count} 通道，共 {Bundle.Channels.Values.Sum(item => item.Count):N0} 点" +
+                (result.Warnings.Count == 0 ? "，校验通过" : warningSummary);
             waveformInstrumentId = connectedInstrumentId;
             await RebuildChannelSummariesAsync(token: token);
             string capturePath = Path.Combine(paths.Captures, $"capture_{DateTime.Now:yyyyMMdd_HHmmss_fff}.csv");
             await csv.SaveBundleAsync(Bundle, capturePath, cancellationToken: token);
             waveformPath = capturePath;
             await AddRecentWaveformAsync(capturePath);
-            Status = $"已抓取并保存 {Bundle.Channels.Count} 个通道，{Bundle.Channels.Values.Sum(item => item.Count):N0} 点，耗时 {result.Elapsed.TotalSeconds:F2} 秒";
+            Status = $"已抓取并保存 {Bundle.Channels.Count} 个通道，{Bundle.Channels.Values.Sum(item => item.Count):N0} 点，耗时 {result.Elapsed.TotalSeconds:F2} 秒{warningSummary}";
             await AddHistoryAsync("设备抓波", Status, capturePath);
         }, ex => DescribeCaptureFailure(ex));
         if (scope is not null) CurrentAcquisitionState = AcquisitionState.Idle;

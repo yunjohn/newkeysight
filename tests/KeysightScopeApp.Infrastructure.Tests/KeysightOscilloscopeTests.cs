@@ -167,6 +167,45 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task ChunkedReadAcceptsMorePointsThanRequestedAndReportsWarning()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":WAVeform:PREamble?"] = "0,0,8,1,1,0,0,1,0,0";
+        transport.BinaryQuerySequences[":WAVeform:DATA?"] = new(
+            new byte[][] { [1, 2, 3, 4, 5, 6], [7, 8] });
+        var warnings = new List<string>();
+        var scope = new KeysightOscilloscope(transport);
+
+        WaveformData waveform = await scope.FetchWaveformChunkedAsync(
+            "CHANnel1", chunkPoints: 5, totalPoints: 8, warnings: warnings);
+
+        Assert.Equal(8, waveform.Count);
+        Assert.Contains(warnings, item =>
+            item.Contains("单次请求 5 点", StringComparison.Ordinal) &&
+            item.Contains("实际返回 6 点", StringComparison.Ordinal));
+        Assert.Contains(("write", ":WAVeform:STARt 7"), transport.Commands);
+    }
+
+    [Fact]
+    public async Task ChunkedReadKeepsPartialWaveformWhenDeviceStopsReturningData()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":WAVeform:PREamble?"] = "0,0,8,1,1,0,0,1,0,0";
+        transport.BinaryQuerySequences[":WAVeform:DATA?"] = new(
+            new byte[][] { [1, 2, 3], [] });
+        var warnings = new List<string>();
+        var scope = new KeysightOscilloscope(transport);
+
+        WaveformData waveform = await scope.FetchWaveformChunkedAsync(
+            "CHANnel1", chunkPoints: 5, totalPoints: 8, warnings: warnings);
+
+        Assert.Equal(3, waveform.Count);
+        Assert.Contains(warnings, item =>
+            item.Contains("设备报告 8 点", StringComparison.Ordinal) &&
+            item.Contains("实际返回 3 点", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task CaptureAutomaticallyChunksLargeRawRecords()
     {
         int points = KeysightOscilloscope.ChunkedReadThreshold + 1;

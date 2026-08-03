@@ -448,6 +448,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         await transport.WriteAsync($":ACQuire:TYPE {acquireType}", token);
         Stopwatch timer = Stopwatch.StartNew();
         var waveforms = new List<WaveformData>();
+        var warnings = new List<string>();
         for (int i = 0; i < request.Channels.Count; i++)
         {
             string channel = request.Channels[i];
@@ -464,6 +465,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
                     ChunkedReadThreshold,
                     null,
                     channelProgress,
+                    warnings,
                     token));
             }
             else
@@ -473,7 +475,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
             }
             progress?.Report((double)(i + 1) / request.Channels.Count);
         }
-        return new(request, new WaveformBundle(waveforms), timer.Elapsed, []);
+        return new(request, new WaveformBundle(waveforms), timer.Elapsed, warnings);
     }
 
     public async Task<WaveformData> FetchWaveformAsync(
@@ -514,6 +516,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         int chunkPoints = 500_000,
         int? totalPoints = null,
         IProgress<double>? progress = null,
+        ICollection<string>? warnings = null,
         CancellationToken token = default)
     {
         ValidateChannel(channel);
@@ -547,6 +550,8 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         var payload = new byte[recordPoints];
         int copied = 0;
         int effectiveChunkPoints = chunkPoints;
+        int? firstRequestedChunk = null;
+        int? firstReturnedChunk = null;
         for (int start = 1; start <= recordPoints;)
         {
             token.ThrowIfCancellationRequested();
@@ -557,33 +562,50 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
                 ":WAVeform:DATA?", 60_000, token);
             int expected = stop - start + 1;
             if (chunk.Length == 0)
-                throw new WaveformIntegrityException(
-                    $"深存储分块返回空数据：{start}~{stop} 请求 {expected} 点。");
-            if (chunk.Length > expected)
-                throw new WaveformIntegrityException(
-                    $"深存储分块返回点数超出请求：{start}~{stop} 请求 {expected} 点，实际返回 {chunk.Length} 点。");
-            chunk.CopyTo(payload, copied);
-            copied += chunk.Length;
+            {
+                if (copied == 0)
+                    throw new WaveformIntegrityException(
+                        $"深存储未返回任何波形数据：{start}~{stop} 请求 {expected} 点。");
+                warnings?.Add(
+                    $"{channel}：设备报告 {recordPoints:N0} 点，实际返回 {copied:N0} 点；已保留实际数据。");
+                break;
+            }
+            if (chunk.Length != expected && firstReturnedChunk is null)
+            {
+                firstRequestedChunk = expected;
+                firstReturnedChunk = chunk.Length;
+            }
+            int accepted = Math.Min(chunk.Length, recordPoints - copied);
+            Array.Copy(chunk, 0, payload, copied, accepted);
+            copied += accepted;
             // InfiniiVision 系列可能将单次二进制传输限制为低于请求范围的点数。
             // 接受已经连续返回的数据，并以设备实际能力调整后续分块，避免跳过数据。
             if (chunk.Length < expected)
                 effectiveChunkPoints = Math.Min(effectiveChunkPoints, chunk.Length);
             progress?.Report((double)copied / recordPoints);
-            start += chunk.Length;
+            start += accepted;
+            if (accepted < chunk.Length) break;
         }
 
-        if (copied != recordPoints)
-            throw new WaveformIntegrityException(
-                $"深存储读取不完整：期望 {recordPoints} 点，实际读取 {copied} 点。");
+        if (firstReturnedChunk is not null)
+            warnings?.Add(
+                $"{channel}：单次请求 {firstRequestedChunk!.Value:N0} 点，设备实际返回 " +
+                $"{firstReturnedChunk.Value:N0} 点；已按实际返回连续读取，共保存 {copied:N0} 点。");
+        if (copied < recordPoints && (warnings is null ||
+            !warnings.Any(item => item.Contains($"实际返回 {copied:N0} 点", StringComparison.Ordinal))))
+            warnings?.Add(
+                $"{channel}：设备报告 {recordPoints:N0} 点，实际返回 {copied:N0} 点；已保留实际数据。");
 
-        var x = new double[recordPoints];
-        var y = new double[recordPoints];
-        for (int i = 0; i < recordPoints; i++)
+        if (copied != payload.Length) Array.Resize(ref payload, copied);
+
+        var x = new double[copied];
+        var y = new double[copied];
+        for (int i = 0; i < copied; i++)
         {
             x[i] = (i - preamble[6]) * preamble[4] + preamble[5];
             y[i] = (payload[i] - preamble[9]) * preamble[7] + preamble[8];
         }
-        var model = new WaveformPreamble((int)preamble[0], (int)preamble[1], recordPoints, (int)preamble[3],
+        var model = new WaveformPreamble((int)preamble[0], (int)preamble[1], copied, (int)preamble[3],
             preamble[4], preamble[5], preamble[6], preamble[7], preamble[8], preamble[9]);
         return new(channel, x, y, pointsMode, unit, model, metadata);
     }
