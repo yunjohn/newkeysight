@@ -75,7 +75,13 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         if (normalized.Contains('"'))
             throw new ArgumentException("文件名不能包含双引号。", nameof(fileName));
 
+        // Errors are queued by the instrument and may belong to an earlier command
+        // (for example, a compatibility screenshot command). Start this transaction
+        // from a known clean queue so a stale -113 is not reported as a save failure.
+        _ = await DrainSystemErrorsAsync(token: token);
+
         await transport.WriteAsync($":SAVE:WMEMory:SOURce {channel}", token);
+        await EnsureNoSystemErrorAsync("设置参考波形保存来源", token);
         await transport.WriteAsync($":SAVE:WMEMory \"{normalized}\"", token);
         _ = await transport.QueryAsync("*OPC?", 30_000, token);
         await EnsureNoSystemErrorAsync("保存参考波形文件", token);
