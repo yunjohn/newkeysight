@@ -20,6 +20,27 @@ public static class ChannelDisplayName
     }
 }
 
+public static class ChannelPalette
+{
+    public const string Channel1 = "#FFFF00";
+    public const string Channel2 = "#00FF00";
+    public const string Channel3 = "#2672FF";
+    public const string Channel4 = "#FF00FF";
+
+    public static string Hex(string channel)
+    {
+        string digits = new(channel.Where(char.IsDigit).ToArray());
+        return digits switch
+        {
+            "1" => Channel1,
+            "2" => Channel2,
+            "3" => Channel3,
+            "4" => Channel4,
+            _ => "#D7DEE8"
+        };
+    }
+}
+
 public sealed class ChannelDisplayNameConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>

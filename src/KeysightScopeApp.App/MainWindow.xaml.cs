@@ -215,8 +215,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        string[] colors = ["#00F5FF", "#2AE500", "#FFBA20", "#FF6B6B"];
-        int colorIndex = 0;
         foreach (WaveformData waveform in viewModel.Bundle.Channels.Values)
         {
             // 控制台实时视图按原始采集点完整绘制，不做显示层包络抽稀。
@@ -224,7 +222,7 @@ public partial class MainWindow : Window
             line.LegendText = ChannelDisplayName.Format(waveform.Channel);
             line.MarkerSize = 0;
             line.LineWidth = 1.4f;
-            line.Color = ScottPlot.Color.FromHex(colors[colorIndex++ % colors.Length]);
+            line.Color = ScottPlot.Color.FromHex(ChannelPalette.Hex(waveform.Channel));
         }
 
         PreviewPlot.Plot.Axes.Bottom.Label.Text = "时间 (s)";

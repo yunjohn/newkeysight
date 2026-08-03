@@ -114,10 +114,10 @@
                             <StackPanel>
                                 <TextBlock Text="通道显示" Style="{StaticResource SectionLabel}"/>
                                 <UniformGrid Columns="2" Margin="0,12,0,4">
-                                    <CheckBox x:Name="Ch1" Content="CH1  青色" IsChecked="True" Click="Channel_Click"/>
-                                    <CheckBox x:Name="Ch2" Content="CH2  绿色" IsChecked="True" Click="Channel_Click"/>
-                                    <CheckBox x:Name="Ch3" Content="CH3  琥珀色" IsChecked="True" Click="Channel_Click"/>
-                                    <CheckBox x:Name="Ch4" Content="CH4  红色" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch1" Content="CH1  黄色" Foreground="#FFFF00" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch2" Content="CH2  绿色" Foreground="#00FF00" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch3" Content="CH3  蓝色" Foreground="#2672FF" IsChecked="True" Click="Channel_Click"/>
+                                    <CheckBox x:Name="Ch4" Content="CH4  洋红色" Foreground="#FF00FF" IsChecked="True" Click="Channel_Click"/>
                                 </UniformGrid>
                                 <TextBlock Text="活动通道" Style="{StaticResource SectionLabel}" Margin="0,12,0,8"/>
                                 <ComboBox x:Name="ActiveChannel"

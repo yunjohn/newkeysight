@@ -1173,14 +1173,7 @@ public sealed class AdvancedAnalysisViewModel(
         return int.TryParse(digits, out int number) ? number : 10_000;
     }
 
-    private static string SnapshotChannelColor(string channel) => ChannelOrder(channel) switch
-    {
-        1 => "#FFD84D",
-        2 => "#56D364",
-        3 => "#58A6FF",
-        4 => "#F778BA",
-        _ => "#D7DEE8"
-    };
+    private static string SnapshotChannelColor(string channel) => ChannelPalette.Hex(channel);
 
     private static Dictionary<string, double> BuildStackOffsets(WaveformData[] waveforms)
     {

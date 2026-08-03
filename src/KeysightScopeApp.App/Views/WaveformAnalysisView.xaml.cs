@@ -63,10 +63,10 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     private static readonly IReadOnlyDictionary<string, string> ChannelColors =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["CHANnel1"] = "#00DCE5",
-            ["CHANnel2"] = "#2AE500",
-            ["CHANnel3"] = "#FFBA20",
-            ["CHANnel4"] = "#FF6B6B"
+            ["CHANnel1"] = ChannelPalette.Channel1,
+            ["CHANnel2"] = ChannelPalette.Channel2,
+            ["CHANnel3"] = ChannelPalette.Channel3,
+            ["CHANnel4"] = ChannelPalette.Channel4
         };
     private WaveformBundle? bundle;
     private CancellationTokenSource? rendering;

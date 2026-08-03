@@ -212,10 +212,10 @@
                                            Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <WrapPanel Margin="0,0,0,4">
-                                    <CheckBox Content="CH1" IsChecked="{Binding Channel1}"/>
-                                    <CheckBox Content="CH2" IsChecked="{Binding Channel2}"/>
-                                    <CheckBox Content="CH3" IsChecked="{Binding Channel3}"/>
-                                    <CheckBox Content="CH4" IsChecked="{Binding Channel4}"/>
+                                    <CheckBox Content="CH1" Foreground="#FFFF00" IsChecked="{Binding Channel1}"/>
+                                    <CheckBox Content="CH2" Foreground="#00FF00" IsChecked="{Binding Channel2}"/>
+                                    <CheckBox Content="CH3" Foreground="#2672FF" IsChecked="{Binding Channel3}"/>
+                                    <CheckBox Content="CH4" Foreground="#FF00FF" IsChecked="{Binding Channel4}"/>
                                 </WrapPanel>
                                 <CheckBox Content="完整深存储（按当前模式自动探测）"
                                           IsChecked="{Binding FullDeepMemory}"/>

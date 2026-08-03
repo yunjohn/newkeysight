@@ -8,6 +8,14 @@ public sealed class AppSmokeTests
     [Fact]
     public void MainWindowTypeIsAvailable() => Assert.NotNull(typeof(MainWindow));
 
+    [Theory]
+    [InlineData("CHANnel1", "#FFFF00")]
+    [InlineData("CH2", "#00FF00")]
+    [InlineData("CHANnel3", "#2672FF")]
+    [InlineData("CH4", "#FF00FF")]
+    public void ChannelPaletteMatchesKeysightChannelColors(string channel, string expected) =>
+        Assert.Equal(expected, ChannelPalette.Hex(channel));
+
     [Fact]
     public void EveryReferencedThemeResourceIsDefined()
     {
