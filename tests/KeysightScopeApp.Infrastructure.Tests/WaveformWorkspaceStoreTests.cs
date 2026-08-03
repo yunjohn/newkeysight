@@ -18,7 +18,8 @@ public sealed class WaveformWorkspaceStoreTests : IDisposable
             new(1, 2), new(-3, 4),
             new HashSet<string> { "CHANnel1", "CHANnel4" },
             new Dictionary<string, double> { ["CHANnel4"] = 2.5 },
-            1.2, 1.8);
+            1.2, 1.8,
+            new Dictionary<string, double> { ["CHANnel4"] = 0.025 });
         var workspace = new WaveformWorkspace(
             WaveformWorkspace.CurrentSchemaVersion,
             state,
@@ -31,6 +32,7 @@ public sealed class WaveformWorkspaceStoreTests : IDisposable
 
         Assert.NotNull(loaded);
         Assert.Equal(1.2, loaded.View.CursorA);
+        Assert.Equal(0.025, loaded.View.ChannelTimeOffsets?["CHANnel4"]);
         Assert.Contains("CHANnel4", loaded.View.VisibleChannels);
         Assert.Equal("启动", Assert.Single(loaded.Annotations).Text);
         Assert.True(loaded.Window?.Maximized);

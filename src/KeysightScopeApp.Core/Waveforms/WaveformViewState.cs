@@ -19,7 +19,8 @@ public sealed record WaveformViewState(
     HashSet<string> VisibleChannels,
     Dictionary<string, double> ChannelOffsets,
     double? CursorA = null,
-    double? CursorB = null);
+    double? CursorB = null,
+    Dictionary<string, double>? ChannelTimeOffsets = null);
 
 public sealed record WaveformWorkspace(
     int SchemaVersion,
@@ -88,7 +89,10 @@ public sealed class WaveformViewHistory(int capacity = 100)
         left.VisibleChannels.SetEquals(right.VisibleChannels) &&
         left.ChannelOffsets.Count == right.ChannelOffsets.Count &&
         left.ChannelOffsets.All(item =>
-            right.ChannelOffsets.TryGetValue(item.Key, out double value) && value == item.Value);
+            right.ChannelOffsets.TryGetValue(item.Key, out double value) && value == item.Value) &&
+        (left.ChannelTimeOffsets ?? []).Count == (right.ChannelTimeOffsets ?? []).Count &&
+        (left.ChannelTimeOffsets ?? []).All(item =>
+            (right.ChannelTimeOffsets ?? []).TryGetValue(item.Key, out double value) && value == item.Value);
 }
 
 public sealed record WaveformAnnotation(

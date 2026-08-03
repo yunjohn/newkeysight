@@ -93,6 +93,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     private WaveformBundle? referenceBundle;
     private readonly Dictionary<string, double> channelOffsets =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, double> channelTimeOffsets =
+        new(StringComparer.OrdinalIgnoreCase);
     private TimeRange? pendingNavigationRange;
     private int eventGeneration;
     private readonly PreparedWaveformCache displayCache = new(64);
@@ -277,6 +279,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         bookmarks.Clear();
         annotations.Clear();
         channelOffsets.Clear();
+        channelTimeOffsets.Clear();
         foreach (string missing in channelMeasurements.Keys
                      .Where(channel => !value.Channels.ContainsKey(channel)).ToArray())
             channelMeasurements.Remove(missing);
@@ -407,10 +410,11 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             {
                 PreparedWaveformDisplay[] prepared = visibleWaveforms.Select(waveform =>
                 {
+                    double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
                     TimeRange range = useCurrentView && previousLimits is not null
                         ? new(
-                            Math.Max(waveform.Range.Minimum, previousLimits.Value.Left),
-                            Math.Min(waveform.Range.Maximum, previousLimits.Value.Right))
+                            Math.Max(waveform.Range.Minimum, previousLimits.Value.Left - timeOffset),
+                            Math.Min(waveform.Range.Maximum, previousLimits.Value.Right - timeOffset))
                         : waveform.Range;
                     if (range.Maximum <= range.Minimum) range = waveform.Range;
                     return displayCache.GetOrPrepare(waveform, range, width, renderDataVersion, token);
@@ -421,10 +425,11 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                         item.Channel.Equals(reference.Channel, StringComparison.OrdinalIgnoreCase)))
                     .Select(reference =>
                     {
+                        double timeOffset = channelTimeOffsets.GetValueOrDefault(reference.Channel);
                         TimeRange range = useCurrentView && previousLimits is not null
                             ? new(
-                                Math.Max(reference.Range.Minimum, previousLimits.Value.Left),
-                                Math.Min(reference.Range.Maximum, previousLimits.Value.Right))
+                                Math.Max(reference.Range.Minimum, previousLimits.Value.Left - timeOffset),
+                                Math.Min(reference.Range.Maximum, previousLimits.Value.Right - timeOffset))
                             : reference.Range;
                         if (range.Maximum <= range.Minimum) range = reference.Range;
                         return displayCache.GetOrPrepare(reference, range, width, renderDataVersion, token);
@@ -434,7 +439,12 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                 foreach (WaveformData waveform in bundle.Channels.Values)
                 {
                     token.ThrowIfCancellationRequested();
-                    try { measurements[waveform.Channel] = WaveformAnalysis.Analyze(waveform, measurementRange); }
+                    TimeRange? channelMeasurementRange = measurementRange is null
+                        ? null
+                        : new TimeRange(
+                            measurementRange.Value.Minimum - channelTimeOffsets.GetValueOrDefault(waveform.Channel),
+                            measurementRange.Value.Maximum - channelTimeOffsets.GetValueOrDefault(waveform.Channel));
+                    try { measurements[waveform.Channel] = WaveformAnalysis.Analyze(waveform, channelMeasurementRange); }
                     catch (InvalidOperationException) { measurements[waveform.Channel] = null; }
                 }
                 return new RenderPayload(prepared, references, measurements, measurementRange);
@@ -445,10 +455,14 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             foreach (PreparedWaveformDisplay waveform in payload.Prepared)
             {
                 double offset = channelOffsets.GetValueOrDefault(waveform.Channel);
+                double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+                double[] displayedX = timeOffset == 0
+                    ? waveform.X
+                    : waveform.X.Select(value => value + timeOffset).ToArray();
                 double[] displayedY = offset == 0
                     ? waveform.Y
                     : waveform.Y.Select(value => value + offset).ToArray();
-                var scatter = Plot.Plot.Add.Scatter(waveform.X, displayedY);
+                var scatter = Plot.Plot.Add.Scatter(displayedX, displayedY);
                 scatter.LegendText = ChannelDisplayName.Format(waveform.Channel);
                 scatter.LineWidth = waveform.Channel.Equals(
                     ActiveChannel.SelectedItem as string,
@@ -460,10 +474,14 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             foreach (PreparedWaveformDisplay waveform in payload.References)
             {
                 double offset = channelOffsets.GetValueOrDefault(waveform.Channel);
+                double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+                double[] displayedX = timeOffset == 0
+                    ? waveform.X
+                    : waveform.X.Select(value => value + timeOffset).ToArray();
                 double[] displayedY = offset == 0
                     ? waveform.Y
                     : waveform.Y.Select(value => value + offset).ToArray();
-                var scatter = Plot.Plot.Add.Scatter(waveform.X, displayedY);
+                var scatter = Plot.Plot.Add.Scatter(displayedX, displayedY);
                 scatter.LegendText = $"{ChannelDisplayName.Format(waveform.Channel)} 参考";
                 scatter.LineWidth = 1;
                 scatter.MarkerSize = 0;
@@ -518,11 +536,14 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             ScottPlot.Coordinates origin = PlotCoordinatesFromDip(moveStart);
             if (channelMoveChannel is string channel)
             {
+                channelTimeOffsets[channel] = channelTimeOffsets.GetValueOrDefault(channel) +
+                    coordinates.X - origin.X;
                 channelOffsets[channel] = channelOffsets.GetValueOrDefault(channel) +
                     coordinates.Y - origin.Y;
                 channelMoveStart = point;
                 CursorReadout.Text =
-                    $"{ChannelDisplayName.Format(channel)} 垂直偏移：{channelOffsets[channel]:G6}";
+                    $"{ChannelDisplayName.Format(channel)} 时间偏移：{channelTimeOffsets[channel]:G6} s   " +
+                    $"垂直偏移：{channelOffsets[channel]:G6}";
                 _ = RenderAsync(useCurrentView: true);
             }
             return;
@@ -598,13 +619,15 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         if (hoverChannel is not null)
         {
             Plot.Cursor = Cursors.SizeNS;
-            CursorReadout.Text = $"{ChannelDisplayName.Format(hoverChannel)} 已进入可拖动区域，按住左键上下拖动。";
+            CursorReadout.Text = $"{ChannelDisplayName.Format(hoverChannel)} 已进入可拖动区域，按住左键上下或左右拖动。";
             return;
         }
         Plot.Cursor = Cursors.Arrow;
         var values = bundle.Channels.Values.Where(IsChannelVisible)
-            .Where(item => coordinates.X >= item.X[0] && coordinates.X <= item.X[^1])
-            .Select(item => $"{ChannelDisplayName.Format(item.Channel)}: {WaveformAnalysis.Interpolate(item, coordinates.X):G6} {item.Unit}");
+            .Select(item => (Waveform: item,
+                SourceX: coordinates.X - channelTimeOffsets.GetValueOrDefault(item.Channel)))
+            .Where(item => item.SourceX >= item.Waveform.X[0] && item.SourceX <= item.Waveform.X[^1])
+            .Select(item => $"{ChannelDisplayName.Format(item.Waveform.Channel)}: {WaveformAnalysis.Interpolate(item.Waveform, item.SourceX):G6} {item.Waveform.Unit}");
         CursorReadout.Text = $"时间={coordinates.X:G8} 秒   {string.Join("   ", values)}";
     }
 
@@ -618,10 +641,12 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
 
         string[] values = bundle.Channels.Values
             .Where(IsChannelVisible)
-            .Where(waveform => coordinates.X >= waveform.X[0] && coordinates.X <= waveform.X[^1])
-            .Select(waveform =>
-                $"{ChannelDisplayName.Format(waveform.Channel)}  " +
-                $"{WaveformAnalysis.Interpolate(waveform, coordinates.X):G7} {waveform.Unit}")
+            .Select(waveform => (Waveform: waveform,
+                SourceX: coordinates.X - channelTimeOffsets.GetValueOrDefault(waveform.Channel)))
+            .Where(item => item.SourceX >= item.Waveform.X[0] && item.SourceX <= item.Waveform.X[^1])
+            .Select(item =>
+                $"{ChannelDisplayName.Format(item.Waveform.Channel)}  " +
+                $"{WaveformAnalysis.Interpolate(item.Waveform, item.SourceX):G7} {item.Waveform.Unit}")
             .ToArray();
         if (values.Length == 0)
         {
@@ -691,7 +716,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             ActiveChannel.SelectedItem = channelMoveChannel;
             channelMoveStart = point;
             Plot.CaptureMouse();
-            CursorReadout.Text = $"已选中 {ChannelDisplayName.Format(channelMoveChannel)}，上下拖动调整位置。";
+            CursorReadout.Text = $"已选中 {ChannelDisplayName.Format(channelMoveChannel)}，上下或左右拖动调整位置。";
             e.Handled = true;
             return;
         }
@@ -851,7 +876,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         ChannelMoveButton.Content = interactionTool == WaveformInteractionTool.ChannelMove
             ? "拖动活动通道：开" : "拖动活动通道";
         CursorReadout.Text = interactionTool == WaveformInteractionTool.ChannelMove
-            ? "通道拖动模式：在波形区上下拖动活动通道。"
+            ? "通道拖动模式：在波形区上下、左右拖动活动通道。"
             : "平移模式：按住鼠标左键拖动波形，滚轮缩放。";
     }
 
@@ -862,9 +887,10 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         if (parts.Length != 2) return;
         WaveformData? waveform = ActiveWaveform();
         if (waveform is null) return;
+        double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
         double hint = parts[0] == "A"
-            ? cursorA ?? waveform.X[0]
-            : cursorB ?? waveform.X[^1];
+            ? (cursorA - timeOffset) ?? waveform.X[0]
+            : (cursorB - timeOffset) ?? waveform.X[^1];
         EdgeKind edge = parts[1] == "Rising" ? EdgeKind.Rising : EdgeKind.Falling;
         (double TimeSeconds, double Threshold)? snapped = WaveformAnalysis.SnapToEdge(waveform, hint, edge);
         if (snapped is null)
@@ -872,8 +898,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             CursorReadout.Text = $"{ChannelDisplayName.Format(waveform.Channel)} 未找到{(edge == EdgeKind.Rising ? "上升沿" : "下降沿")}。";
             return;
         }
-        if (parts[0] == "A") cursorA = snapped.Value.TimeSeconds;
-        else cursorB = snapped.Value.TimeSeconds;
+        if (parts[0] == "A") cursorA = snapped.Value.TimeSeconds + timeOffset;
+        else cursorB = snapped.Value.TimeSeconds + timeOffset;
         NormalizeCursorOrder();
         _ = RenderAsync(useCurrentView: true);
     }
@@ -891,7 +917,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     {
         WaveformData? waveform = ActiveWaveform();
         if (waveform is null) return;
-        double hint = lastPointerCoordinates?.X ??
+        double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+        double hint = (lastPointerCoordinates?.X - timeOffset) ??
             (waveform.Range.Minimum + waveform.Range.Maximum) / 2;
         string mode = (sender as FrameworkElement)?.Tag?.ToString() ?? "Smart";
         PulseWindow? pulse = mode is "Pulse" or "Smart"
@@ -899,8 +926,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             : null;
         if (pulse is not null)
         {
-            cursorA = pulse.RisingTimeSeconds;
-            cursorB = pulse.FallingTimeSeconds;
+            cursorA = pulse.RisingTimeSeconds + timeOffset;
+            cursorB = pulse.FallingTimeSeconds + timeOffset;
             CursorReadout.Text = $"{ChannelDisplayName.Format(waveform.Channel)} 已锁定最近完整脉冲。";
             _ = RenderAsync(useCurrentView: true);
             return;
@@ -908,8 +935,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         PeriodWindow? period = WaveformAnalysis.FindNearestPeriod(waveform, hint, EdgeKind.Rising);
         if (period is not null)
         {
-            cursorA = period.StartTimeSeconds;
-            cursorB = period.EndTimeSeconds;
+            cursorA = period.StartTimeSeconds + timeOffset;
+            cursorB = period.EndTimeSeconds + timeOffset;
             CursorReadout.Text = $"{ChannelDisplayName.Format(waveform.Channel)} 已锁定最近完整周期。";
             _ = RenderAsync(useCurrentView: true);
             return;
@@ -1030,15 +1057,18 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         snappedEdge = EdgeKind.Rising;
         WaveformData? waveform = ActiveWaveform();
         if (waveform is null) return false;
+        double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+        double sourceHint = hint - timeOffset;
 
         var candidates = new List<(double Time, EdgeKind Edge, double Distance)>();
         foreach (EdgeKind edge in Enum.GetValues<EdgeKind>())
         {
-            if (WaveformAnalysis.SnapToEdge(waveform, hint, edge) is not { } candidate)
+            if (WaveformAnalysis.SnapToEdge(waveform, sourceHint, edge) is not { } candidate)
                 continue;
             double hintX = PlotPixelToDip(Plot.Plot.GetPixel(new(hint, 0))).X;
-            double candidateX = PlotPixelToDip(Plot.Plot.GetPixel(new(candidate.TimeSeconds, 0))).X;
-            candidates.Add((candidate.TimeSeconds, edge, Math.Abs(candidateX - hintX)));
+            double displayedCandidate = candidate.TimeSeconds + timeOffset;
+            double candidateX = PlotPixelToDip(Plot.Plot.GetPixel(new(displayedCandidate, 0))).X;
+            candidates.Add((displayedCandidate, edge, Math.Abs(candidateX - hintX)));
         }
 
         (double Time, EdgeKind Edge, double Distance)? nearest = candidates.Count == 0
@@ -1100,10 +1130,15 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         return bundle.Channels.Values
             .Where(IsChannelVisible)
             .Where(waveform =>
-                coordinates.X >= waveform.X[0] && coordinates.X <= waveform.X[^1])
+            {
+                double sourceX = coordinates.X - channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+                return sourceX >= waveform.X[0] && sourceX <= waveform.X[^1];
+            })
             .Select(waveform =>
             {
-                int index = Array.BinarySearch(waveform.X, coordinates.X);
+                double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+                double sourceX = coordinates.X - timeOffset;
+                int index = Array.BinarySearch(waveform.X, sourceX);
                 if (index < 0) index = ~index;
                 double offset = channelOffsets.GetValueOrDefault(waveform.Channel);
                 double distance = double.PositiveInfinity;
@@ -1112,9 +1147,9 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                 for (int sample = first; sample <= last; sample++)
                 {
                     Point a = PlotPixelToDip(Plot.Plot.GetPixel(
-                        new(waveform.X[sample], waveform.Y[sample] + offset)));
+                        new(waveform.X[sample] + timeOffset, waveform.Y[sample] + offset)));
                     Point b = PlotPixelToDip(Plot.Plot.GetPixel(
-                        new(waveform.X[sample + 1], waveform.Y[sample + 1] + offset)));
+                        new(waveform.X[sample + 1] + timeOffset, waveform.Y[sample + 1] + offset)));
                     distance = Math.Min(distance, DistanceToSegment(
                         point.X, point.Y, a.X, a.Y, b.X, b.Y));
                 }
@@ -1215,14 +1250,17 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
 
             foreach (WaveformData waveform in bundle.Channels.Values.Where(IsChannelVisible))
             {
-                if (cursorA.Value < waveform.X[0] || cursorA.Value > waveform.X[^1]) continue;
-                double valueA = WaveformAnalysis.Interpolate(waveform, cursorA.Value);
+                double timeOffset = channelTimeOffsets.GetValueOrDefault(waveform.Channel);
+                double sourceA = cursorA.Value - timeOffset;
+                if (sourceA < waveform.X[0] || sourceA > waveform.X[^1]) continue;
+                double valueA = WaveformAnalysis.Interpolate(waveform, sourceA);
                 string channelReadout =
                     $"{ChannelDisplayName.Format(waveform.Channel)}: A={valueA:G8} {waveform.Unit}";
                 if (cursorB is not null &&
-                    cursorB.Value >= waveform.X[0] && cursorB.Value <= waveform.X[^1])
+                    cursorB.Value - timeOffset >= waveform.X[0] &&
+                    cursorB.Value - timeOffset <= waveform.X[^1])
                 {
-                    double valueB = WaveformAnalysis.Interpolate(waveform, cursorB.Value);
+                    double valueB = WaveformAnalysis.Interpolate(waveform, cursorB.Value - timeOffset);
                     channelReadout +=
                         $"   B={valueB:G8} {waveform.Unit}" +
                         $"   Δ={valueB - valueA:G8} {waveform.Unit}";
@@ -1322,8 +1360,10 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     {
         if (bundle is null) return;
         ScottPlot.AxisLimits current = Plot.Plot.Axes.GetLimits();
-        double left = bundle.Channels.Values.Min(item => item.Range.Minimum);
-        double right = bundle.Channels.Values.Max(item => item.Range.Maximum);
+        double left = bundle.Channels.Values.Min(item =>
+            item.Range.Minimum + channelTimeOffsets.GetValueOrDefault(item.Channel));
+        double right = bundle.Channels.Values.Max(item =>
+            item.Range.Maximum + channelTimeOffsets.GetValueOrDefault(item.Channel));
         Plot.Plot.Axes.SetLimits(left, right, current.Bottom, current.Top);
         Plot.Refresh();
         ScheduleViewportRefresh();
@@ -1396,7 +1436,8 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             visible,
             new Dictionary<string, double>(channelOffsets),
             cursorA,
-            cursorB);
+            cursorB,
+            new Dictionary<string, double>(channelTimeOffsets));
     }
 
     private void RestoreViewState(WaveformViewState state)
@@ -1411,6 +1452,9 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         channelOffsets.Clear();
         foreach ((string channel, double offset) in state.ChannelOffsets)
             channelOffsets[channel] = offset;
+        channelTimeOffsets.Clear();
+        foreach ((string channel, double offset) in state.ChannelTimeOffsets ?? [])
+            channelTimeOffsets[channel] = offset;
         Plot.Plot.Axes.SetLimits(
             state.XRange.Minimum, state.XRange.Maximum,
             state.YRange.Minimum, state.YRange.Maximum);
@@ -1530,6 +1574,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     private void ResetOffsets_Click(object sender, RoutedEventArgs e)
     {
         channelOffsets.Clear();
+        channelTimeOffsets.Clear();
         _ = RenderAsync(useCurrentView: true);
     }
 
@@ -1641,21 +1686,26 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         WaveformData[] waveforms = bundle.Channels.Values.Where(IsChannelVisible).ToArray();
         WaveformData[] references = referenceBundle?.Channels.Values.ToArray() ?? [];
         var offsets = new Dictionary<string, double>(channelOffsets, StringComparer.OrdinalIgnoreCase);
+        var timeOffsets = new Dictionary<string, double>(channelTimeOffsets, StringComparer.OrdinalIgnoreCase);
         ScottPlot.AxisLimits limits = Plot.Plot.Axes.GetLimits();
         await Task.Run(() =>
         {
             var clean = new ScottPlot.Plot();
             foreach (WaveformData waveform in waveforms)
             {
+                double timeOffset = timeOffsets.GetValueOrDefault(waveform.Channel);
                 TimeRange range = new(
-                    Math.Max(waveform.Range.Minimum, limits.Left),
-                    Math.Min(waveform.Range.Maximum, limits.Right));
+                    Math.Max(waveform.Range.Minimum, limits.Left - timeOffset),
+                    Math.Min(waveform.Range.Maximum, limits.Right - timeOffset));
                 if (range.Maximum <= range.Minimum) range = waveform.Range;
                 PreparedWaveformDisplay display = EnvelopeDecimator.Prepare(
                     waveform, range, 1920);
                 double offset = offsets.GetValueOrDefault(waveform.Channel);
+                double[] x = timeOffset == 0
+                    ? display.X
+                    : display.X.Select(value => value + timeOffset).ToArray();
                 double[] y = offset == 0 ? display.Y : display.Y.Select(value => value + offset).ToArray();
-                var line = clean.Add.Scatter(display.X, y);
+                var line = clean.Add.Scatter(x, y);
                 line.LegendText = ChannelDisplayName.Format(waveform.Channel);
                 line.MarkerSize = 0;
                 line.LineWidth = 1;
@@ -1665,13 +1715,17 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                 waveforms.Any(waveform => waveform.Channel.Equals(
                     item.Channel, StringComparison.OrdinalIgnoreCase))))
             {
+                double timeOffset = timeOffsets.GetValueOrDefault(reference.Channel);
                 TimeRange range = new(
-                    Math.Max(reference.Range.Minimum, limits.Left),
-                    Math.Min(reference.Range.Maximum, limits.Right));
+                    Math.Max(reference.Range.Minimum, limits.Left - timeOffset),
+                    Math.Min(reference.Range.Maximum, limits.Right - timeOffset));
                 if (range.Maximum <= range.Minimum) range = reference.Range;
                 PreparedWaveformDisplay display = EnvelopeDecimator.Prepare(
                     reference, range, 1920);
-                var line = clean.Add.Scatter(display.X, display.Y);
+                double[] x = timeOffset == 0
+                    ? display.X
+                    : display.X.Select(value => value + timeOffset).ToArray();
+                var line = clean.Add.Scatter(x, display.Y);
                 line.LegendText = $"{ChannelDisplayName.Format(reference.Channel)} 参考";
                 line.MarkerSize = 0;
                 line.LinePattern = ScottPlot.LinePattern.Dashed;
