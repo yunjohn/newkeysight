@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace KeysightScopeApp.Infrastructure.Configuration;
 
 public sealed record AppSettings(
-    int SchemaVersion = 6,
+    int SchemaVersion = 7,
     string? LastResource = null,
     string PointsMode = "NORMal",
     string AcquireType = "NORMal",
@@ -30,6 +30,7 @@ public sealed record AppSettings(
     string AiEndpoint = "https://api.openai.com/v1",
     string AiModel = "gpt-5-mini",
     int AiTimeoutSeconds = 90,
+    string? DefaultDataDirectory = null,
     IReadOnlyDictionary<string, JsonElement>? AdvancedAnalysis = null,
     double WindowLeft = 100,
     double WindowTop = 100,
@@ -52,11 +53,17 @@ public sealed class AppPaths
         Profiles = Create("profiles");
     }
     public string Root { get; }
-    public string Captures { get; }
+    public string Captures { get; private set; }
     public string Reports { get; }
     public string Settings { get; }
     public string Logs { get; }
     public string Profiles { get; }
+    public void SetDataDirectory(string? directory)
+    {
+        Captures = string.IsNullOrWhiteSpace(directory)
+            ? Create("captures")
+            : Directory.CreateDirectory(Path.GetFullPath(directory)).FullName;
+    }
     private string Create(string name) { string path = Path.Combine(Root, name); Directory.CreateDirectory(path); return path; }
 }
 
@@ -74,8 +81,8 @@ public sealed class AppSettingsStore(AppPaths paths)
             AppSettings? result = await JsonSerializer.DeserializeAsync<AppSettings>(stream, options, token);
             return result switch
             {
-                { SchemaVersion: 6 } => result,
-                { SchemaVersion: 1 or 2 or 3 or 4 or 5 } => result with { SchemaVersion = 6 },
+                { SchemaVersion: 7 } => result,
+                { SchemaVersion: 1 or 2 or 3 or 4 or 5 or 6 } => result with { SchemaVersion = 7 },
                 _ => new()
             };
         }

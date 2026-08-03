@@ -391,8 +391,42 @@
           <TabItem Header="启动刹车测试">
               <ContentControl x:Name="AdvancedAnalysisHost"/>
           </TabItem>
-          <TabItem Header="历史数据">
-              <Grid Margin="24,20">
+          <TabItem Header="设置">
+              <TabControl Margin="24,20">
+                  <TabItem Header="常规设置">
+                      <Grid Margin="16">
+                          <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="640"/>
+                              <ColumnDefinition Width="*"/>
+                          </Grid.ColumnDefinitions>
+                          <Border Grid.Column="1" Style="{DynamicResource CardPanel}" VerticalAlignment="Top">
+                              <StackPanel>
+                                  <TextBlock Text="数据保存位置" FontSize="22" FontWeight="SemiBold"
+                                             Foreground="{DynamicResource CyanBrush}"/>
+                                  <TextBlock Text="波形 CSV 保存到此目录；截图保存到 screenshots，启动刹车归档保存到 analysis。"
+                                             TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                             Margin="0,4,0,16"/>
+                                  <TextBlock Text="默认数据目录" Style="{DynamicResource SectionLabel}"/>
+                                  <TextBox Text="{Binding DataDirectory, Mode=OneWay}" IsReadOnly="True"
+                                           MinHeight="36" Margin="0,4,0,8"
+                                           AutomationProperties.Name="默认数据保存位置"/>
+                                  <Grid>
+                                      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                      <Button Content="选择目录" Command="{Binding ChooseDataDirectoryCommand}"
+                                              Style="{DynamicResource PrimaryButton}" MinHeight="36" Margin="0,4,4,0"/>
+                                      <Button Grid.Column="1" Content="打开目录" Command="{Binding OpenDataDirectoryCommand}"
+                                              MinHeight="36" Margin="4,4,0,0"/>
+                                  </Grid>
+                                  <TextBlock Text="更改后仅影响新保存的数据，已有文件不会自动移动。"
+                                             TextWrapping="Wrap" FontSize="11"
+                                             Foreground="{DynamicResource MutedTextBrush}" Margin="0,10,0,0"/>
+                              </StackPanel>
+                          </Border>
+                      </Grid>
+                  </TabItem>
+                  <TabItem Header="数据与历史">
+              <Grid Margin="16">
                   <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="1.1*"/>
                       <ColumnDefinition Width="0"/>
@@ -453,9 +487,11 @@
                       </DockPanel>
                   </Border>
               </Grid>
-          </TabItem>
-          <TabItem Header="AI 设置">
-              <ContentControl x:Name="AiAssistantHost"/>
+                  </TabItem>
+                  <TabItem Header="AI 设置">
+                      <ContentControl x:Name="AiAssistantHost"/>
+                  </TabItem>
+              </TabControl>
           </TabItem>
         </TabControl>
     </DockPanel>

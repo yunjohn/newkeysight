@@ -52,8 +52,7 @@ public enum MainWorkspaceTab
     Console,
     Waveform,
     StartupBrake,
-    History,
-    AiAssistant
+    Settings
 }
 
 public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
@@ -115,10 +114,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private int referenceSlot = 1;
     private string referenceFileName = "reference_waveform.h5";
     private AcquisitionState acquisitionState = AcquisitionState.Disconnected;
+    private string dataDirectory = "";
 
     public async Task InitializeAsync()
     {
         AppSettings settings = await settingsStore.LoadAsync();
+        DataDirectory = string.IsNullOrWhiteSpace(settings.DefaultDataDirectory)
+            ? paths.Captures
+            : Path.GetFullPath(settings.DefaultDataDirectory);
+        paths.SetDataDirectory(DataDirectory);
         SelectedResource = settings.LastResource;
         PointsMode = settings.PointsMode;
         AcquireType = settings.AcquireType;
@@ -206,7 +210,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             WindowLeft = left,
             WindowTop = top,
             WindowWidth = width,
-            WindowHeight = height
+            WindowHeight = height,
+            DefaultDataDirectory = DataDirectory
         });
     }
 
@@ -261,6 +266,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             Directory.CreateDirectory(directory);
             Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
         });
+        ChooseDataDirectoryCommand = new AsyncCommand(ChooseDataDirectoryAsync, () => !IsBusy);
+        OpenDataDirectoryCommand = new RelayCommand(OpenDataDirectory);
         ImportLegacyCommand = new AsyncCommand(ImportLegacyAsync, () => !IsBusy);
         ReadTriggerCommand = new AsyncCommand(ReadTriggerAsync, () => !IsBusy && scope is not null);
         ApplyTriggerCommand = new AsyncCommand(ApplyTriggerAsync, () => !IsBusy && scope is not null);
@@ -321,6 +328,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public ICommand SaveReferenceFileCommand { get; }
     public ICommand CopyRecentScreenshotCommand { get; }
     public ICommand OpenScreenshotFolderCommand { get; }
+    public ICommand ChooseDataDirectoryCommand { get; }
+    public ICommand OpenDataDirectoryCommand { get; }
     public ICommand ImportLegacyCommand { get; }
     public ICommand ReadTriggerCommand { get; }
     public ICommand ApplyTriggerCommand { get; }
@@ -504,6 +513,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     {
         get => selectedRecentScreenshot;
         set { selectedRecentScreenshot = value; Changed(); NotifyCommands(); }
+    }
+    public string DataDirectory
+    {
+        get => dataDirectory;
+        private set { dataDirectory = value; Changed(); }
     }
     public string HistoryFilter
     {
@@ -880,6 +894,35 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             }
             await AddHistoryAsync("设备截图", Status, target);
         }, ex => FileFailure.Describe(ex, target));
+    }
+
+    private async Task ChooseDataDirectoryAsync()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "选择默认数据保存位置",
+            InitialDirectory = Directory.Exists(DataDirectory) ? DataDirectory : null,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunOperationAsync("正在更新数据保存位置…", async token =>
+        {
+            string selected = Path.GetFullPath(dialog.FolderName);
+            Directory.CreateDirectory(selected);
+            paths.SetDataDirectory(selected);
+            DataDirectory = selected;
+            AppSettings current = await settingsStore.LoadAsync(token);
+            await settingsStore.SaveAsync(current with { DefaultDataDirectory = selected }, token);
+            Status = $"默认数据目录已更新：{selected}";
+            await AddHistoryAsync("数据目录", Status, selected);
+        });
+    }
+
+    private void OpenDataDirectory()
+    {
+        Directory.CreateDirectory(DataDirectory);
+        Process.Start(new ProcessStartInfo(DataDirectory) { UseShellExecute = true });
     }
 
     private async Task SaveChannelToReferenceAsync()
@@ -1261,6 +1304,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         (SingleCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (DeviceScreenshotCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (QuickScreenshotCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (ChooseDataDirectoryCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (SaveChannelToReferenceCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (UploadReferenceFileCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (SaveReferenceFileCommand as AsyncCommand)?.NotifyCanExecuteChanged();
