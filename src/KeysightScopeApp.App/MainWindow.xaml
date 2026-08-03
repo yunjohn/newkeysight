@@ -237,14 +237,14 @@
                                 <Grid Margin="0,58,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
-                                    <Button Content="运行" Command="{Binding RunCommand}" Style="{DynamicResource PrimaryButton}"
+                                    <Button Content="运行" Command="{Binding RunCommand}" Style="{DynamicResource AcquisitionRunButton}"
                                             MinHeight="36" Margin="0,4,4,4"/>
                                     <Button Grid.Column="1" Content="单次" Command="{Binding SingleCommand}"
-                                            MinHeight="36" Margin="4"/>
+                                            Style="{DynamicResource AcquisitionSingleButton}" MinHeight="36" Margin="4"/>
                                     <Button Grid.Row="1" Content="停止" Command="{Binding StopCommand}"
-                                            Style="{DynamicResource DangerButton}" MinHeight="36" Margin="0,4,4,4"/>
+                                            Style="{DynamicResource AcquisitionStopButton}" MinHeight="36" Margin="0,4,4,4"/>
                                     <Button Grid.Row="1" Grid.Column="1" Content="获取波形" Command="{Binding CaptureCommand}"
-                                            MinHeight="36" Margin="4"/>
+                                            Style="{DynamicResource AcquisitionCaptureButton}" MinHeight="36" Margin="4"/>
                                     <Button Grid.Row="2" Grid.ColumnSpan="2" Content="应用通道显示"
                                             Command="{Binding ApplyChannelDisplayCommand}" MinHeight="36" Margin="0,4,0,0"/>
                                 </Grid>

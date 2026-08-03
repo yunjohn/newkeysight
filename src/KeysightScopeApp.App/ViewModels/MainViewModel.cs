@@ -470,14 +470,25 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             acquisitionState = value;
             Changed();
             Changed(nameof(AcquisitionStateText));
+            Changed(nameof(IsRunStateActive));
+            Changed(nameof(IsSingleStateActive));
+            Changed(nameof(IsStopStateActive));
+            Changed(nameof(IsCaptureStateActive));
         }
     }
+    public bool IsRunStateActive => CurrentAcquisitionState == AcquisitionState.Running;
+    public bool IsSingleStateActive => CurrentAcquisitionState is
+        AcquisitionState.WaitingSingle or AcquisitionState.SingleComplete;
+    public bool IsStopStateActive => CurrentAcquisitionState is
+        AcquisitionState.Idle or AcquisitionState.Stopping;
+    public bool IsCaptureStateActive => CurrentAcquisitionState == AcquisitionState.Capturing;
     public string AcquisitionStateText => CurrentAcquisitionState switch
     {
         AcquisitionState.Disconnected => "未连接",
         AcquisitionState.Idle => "空闲",
         AcquisitionState.Running => "连续运行",
         AcquisitionState.WaitingSingle => "等待单次触发",
+        AcquisitionState.SingleComplete => "单次已触发",
         AcquisitionState.Capturing => "正在抓取",
         AcquisitionState.Stopping => "正在停止",
         AcquisitionState.Faulted => "通信异常",
@@ -867,7 +878,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         {
             IsSinglePending = false;
             if (scope is not null && CurrentAcquisitionState != AcquisitionState.Faulted)
-                CurrentAcquisitionState = AcquisitionState.Idle;
+                CurrentAcquisitionState = TriggerStatus.Equals(
+                    "TRIGGERED", StringComparison.OrdinalIgnoreCase)
+                    ? AcquisitionState.SingleComplete
+                    : AcquisitionState.Idle;
         }
     }
 

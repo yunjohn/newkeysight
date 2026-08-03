@@ -9,6 +9,7 @@ public enum AcquisitionState
     Idle,
     Running,
     WaitingSingle,
+    SingleComplete,
     Capturing,
     Stopping,
     Faulted

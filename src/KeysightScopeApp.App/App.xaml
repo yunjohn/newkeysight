@@ -242,6 +242,50 @@
             <Setter Property="BorderBrush" Value="#79FF5B"/>
             <Setter Property="FontWeight" Value="Bold"/>
         </Style>
+        <Style x:Key="AcquisitionRunButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRunStateActive}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource CyanBrush}"/>
+                    <Setter Property="Foreground" Value="#002021"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource CyanBrightBrush}"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AcquisitionSingleButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSingleStateActive}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AmberBrush}"/>
+                    <Setter Property="Foreground" Value="#241A00"/>
+                    <Setter Property="BorderBrush" Value="#FFE082"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AcquisitionStopButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsStopStateActive}" Value="True">
+                    <Setter Property="Background" Value="#93000A"/>
+                    <Setter Property="Foreground" Value="#FFDAD6"/>
+                    <Setter Property="BorderBrush" Value="#FF5449"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AcquisitionCaptureButton" TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCaptureStateActive}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource GreenBrush}"/>
+                    <Setter Property="Foreground" Value="#022100"/>
+                    <Setter Property="BorderBrush" Value="#79FF5B"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
