@@ -146,16 +146,35 @@ internal sealed class KeysightVisaSession(
     public Task<byte[]> QueryBinaryAsync(string command, CancellationToken token) =>
         InvokeAsync(() =>
         {
-            session.FormattedIO.WriteLine(command);
-            return session.FormattedIO.ReadBinaryBlockOfByte();
+            return QueryBinaryBlock(command);
         }, token);
 
     public Task<byte[]> QueryBinaryAsync(string command, int timeoutMilliseconds, CancellationToken token) =>
         InvokeWithTimeoutAsync(() =>
         {
-            session.FormattedIO.WriteLine(command);
-            return session.FormattedIO.ReadBinaryBlockOfByte();
+            return QueryBinaryBlock(command);
         }, timeoutMilliseconds, token);
+
+    private byte[] QueryBinaryBlock(string command)
+    {
+        // PNG files and waveform blocks naturally contain 0x0A bytes.  If VISA's
+        // text termination character remains enabled, some Keysight backends stop
+        // at the first LF (a PNG then appears to contain only its 6-byte signature).
+        // The IEEE-488.2 block header already carries the exact payload length, so
+        // termination-character handling must be disabled for the binary read only.
+        bool terminationCharacterEnabled = session.TerminationCharacterEnabled;
+        try
+        {
+            session.TerminationCharacterEnabled = false;
+            session.FormattedIO.WriteLine(command);
+            return session.FormattedIO.ReadBinaryBlockOfByte(seekToBlock: true);
+        }
+        finally
+        {
+            if (!disposed)
+                session.TerminationCharacterEnabled = terminationCharacterEnabled;
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
