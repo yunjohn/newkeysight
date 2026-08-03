@@ -21,7 +21,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="信号实验室 · 量子 X1" Style="{DynamicResource MonoText}"
+                <TextBlock Text="SIGNAL LAB · QUANTUM X1" Style="{DynamicResource MonoText}"
                            FontSize="24" FontWeight="Bold" Foreground="{DynamicResource CyanBrush}"
                            VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="1" Text="采集 · 分析 · 验证 · 归档"
