@@ -821,6 +821,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             case "Annotate": AddAnnotation_Click(this, e); break;
             case "Reset": ResetView_Click(this, e); break;
             case "Export": ExportPng_Click(this, e); break;
+            case "CopyImage": CopyCurrentImage(); break;
         }
     }
 
@@ -1646,7 +1647,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
             if (ScreenshotIncludeChrome.IsChecked == true)
                 await SaveWindowPngAsync(dialog.FileName);
             else if (ScreenshotIncludeOverlays.IsChecked == true)
-                SaveCurrentPlotPng(dialog.FileName);
+                await SaveCurrentViewPngAsync(dialog.FileName);
             else
                 await SaveCleanPlotPngAsync(dialog.FileName);
             CursorReadout.Text = $"已导出：{dialog.FileName}";
@@ -1748,18 +1749,67 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         });
     }
 
-    private void SaveCurrentPlotPng(string path)
+    private async Task SaveCurrentViewPngAsync(string path)
     {
-        string fullPath = Path.GetFullPath(path);
-        string temporary = fullPath + $".{Guid.NewGuid():N}.tmp";
+        RenderTargetBitmap bitmap = RenderCurrentViewWithMeasurements();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        await using var memory = new MemoryStream();
+        encoder.Save(memory);
+        await SaveBytesAtomicallyAsync(path, memory.ToArray());
+    }
+
+    private void CopyCurrentImage()
+    {
         try
         {
-            Plot.Plot.SavePng(temporary, 1920, 1080);
-            File.Move(temporary, fullPath, true);
+            RenderTargetBitmap bitmap = RenderCurrentViewWithMeasurements();
+            bitmap.Freeze();
+            Clipboard.SetImage(bitmap);
+            CursorReadout.Text = "当前波形图及测量信息已复制到剪贴板。";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                Window.GetWindow(this),
+                $"复制当前图像失败：{ex.Message}",
+                "复制失败",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private RenderTargetBitmap RenderCurrentViewWithMeasurements()
+    {
+        const int width = 1920;
+        const int height = 1080;
+        Visibility previousMeasurementVisibility = MeasurementPanel.Visibility;
+        try
+        {
+            MeasurementPanel.Visibility = Visibility.Visible;
+            WaveformSurface.UpdateLayout();
+            var visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawRectangle(
+                    new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0C0E11")),
+                    null,
+                    new Rect(0, 0, width, height));
+                var brush = new VisualBrush(WaveformSurface)
+                {
+                    Stretch = Stretch.Uniform,
+                    AlignmentX = AlignmentX.Center,
+                    AlignmentY = AlignmentY.Center
+                };
+                context.DrawRectangle(brush, null, new Rect(0, 0, width, height));
+            }
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(visual);
+            return bitmap;
         }
         finally
         {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            MeasurementPanel.Visibility = previousMeasurementVisibility;
         }
     }
 

@@ -53,7 +53,7 @@
                 <ColumnDefinition x:Name="SidebarColumn" Width="328"/>
             </Grid.ColumnDefinitions>
 
-            <Grid Background="{StaticResource ScreenBrush}">
+            <Grid x:Name="WaveformSurface" Background="{StaticResource ScreenBrush}">
                 <scottPlot:WpfPlot x:Name="Plot"/>
                 <Canvas x:Name="InteractionOverlay" Panel.ZIndex="5">
                     <Border x:Name="BoxZoomOverlay" Visibility="Collapsed"
@@ -298,6 +298,8 @@
                     <Button Content="复位全图                    R" Tag="Reset" Click="PopupAction_Click"
                             Style="{StaticResource WaveformMenuItemButton}"/>
                     <Button Content="导出当前图像" Tag="Export" Click="PopupAction_Click"
+                            Style="{StaticResource WaveformMenuItemButton}"/>
+                    <Button Content="复制当前图像" Tag="CopyImage" Click="PopupAction_Click"
                             Style="{StaticResource WaveformMenuItemButton}"/>
                 </StackPanel>
             </Border>
