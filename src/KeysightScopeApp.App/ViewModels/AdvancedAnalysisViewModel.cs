@@ -45,6 +45,12 @@ internal sealed record SnapshotPhase(
     string Color,
     IReadOnlyList<string> Metrics);
 
+internal sealed record SnapshotPeakAnnotation(
+    string Channel,
+    double TimeSeconds,
+    double Value,
+    string Unit);
+
 public sealed class AdvancedAnalysisViewModel(
     ReportExporter reports,
     TestArchiveService archive,
@@ -942,18 +948,24 @@ public sealed class AdvancedAnalysisViewModel(
                         result.BrakeEndWindow.StartSeconds);
                     TimeRange overviewImageRange = PaddedRange(bundleSnapshot, overviewRange, .18);
                     string overviewPath = Path.Combine(directory, "overview.png");
+                    WaveformBundle overviewSnapshot = SelectChannels(
+                        SliceBundle(bundleSnapshot, overviewImageRange),
+                        [configSnapshot!.ControlChannel, configSnapshot.SpeedChannel,
+                         configSnapshot.CurrentChannel, configSnapshot.EncoderAChannel]);
+                    SnapshotPeakAnnotation? currentPeak = FindAbsolutePeak(
+                        SliceBundle(bundleSnapshot, overviewRange),
+                        configSnapshot.CurrentChannel);
                     await CreateScreenshotAsync(
                         overviewPath,
-                        SelectChannels(SliceBundle(bundleSnapshot, overviewImageRange),
-                            [configSnapshot!.ControlChannel, configSnapshot.SpeedChannel,
-                             configSnapshot.CurrentChannel, configSnapshot.EncoderAChannel]),
+                        overviewSnapshot,
                         $"完整测试｜启动 {result.StartupDelaySeconds * 1000:F3} ms｜刹车 {result.BrakeDelaySeconds * 1000:F3} ms",
                         token,
                         [(result.StartupStart.TimeSeconds, "启动"),
                          (result.SpeedReached.TimeSeconds, "达速"),
                          (result.BrakeStart.TimeSeconds, "刹车"),
                          (result.BrakeEndWindow.StartSeconds, "完成")],
-                        BuildOverviewPhases(result));
+                        BuildOverviewPhases(result),
+                        currentPeak is null ? null : [currentPeak]);
                     File.Copy(overviewPath, Path.Combine(directory, "screenshot.png"), true);
                 }
                 await File.WriteAllTextAsync(
@@ -1060,6 +1072,29 @@ public sealed class AdvancedAnalysisViewModel(
         return new(selected.Length > 0 ? selected : source.Channels.Values);
     }
 
+    private static SnapshotPeakAnnotation? FindAbsolutePeak(WaveformBundle source, string channel)
+    {
+        WaveformData? waveform = source.Channels.Values.FirstOrDefault(item =>
+            string.Equals(item.Channel, channel, StringComparison.OrdinalIgnoreCase));
+        if (waveform is null || waveform.Y.Length == 0) return null;
+
+        int peakIndex = 0;
+        double peakMagnitude = Math.Abs(waveform.Y[0]);
+        for (int index = 1; index < waveform.Y.Length; index++)
+        {
+            double magnitude = Math.Abs(waveform.Y[index]);
+            if (magnitude <= peakMagnitude) continue;
+            peakMagnitude = magnitude;
+            peakIndex = index;
+        }
+
+        return new SnapshotPeakAnnotation(
+            waveform.Channel,
+            waveform.X[peakIndex],
+            waveform.Y[peakIndex],
+            string.IsNullOrWhiteSpace(waveform.Unit) ? "A" : waveform.Unit);
+    }
+
     private Task CreateStandardScreenshotAsync(string path, CancellationToken token)
     {
         WaveformBundle snapshot = bundle ?? throw new InvalidOperationException("当前没有可归档的波形。");
@@ -1072,7 +1107,8 @@ public sealed class AdvancedAnalysisViewModel(
         string title,
         CancellationToken token,
         IReadOnlyList<(double Time, string Label)>? markers = null,
-        IReadOnlyList<SnapshotPhase>? phases = null)
+        IReadOnlyList<SnapshotPhase>? phases = null,
+        IReadOnlyList<SnapshotPeakAnnotation>? peakAnnotations = null)
     {
         return Task.Run(() =>
         {
@@ -1111,7 +1147,7 @@ public sealed class AdvancedAnalysisViewModel(
             plot.Title(title);
             plot.ShowLegend();
             plot.SavePng(path, 1920, 1080);
-            DecorateSnapshot(path, ordered, phases, markers);
+            DecorateSnapshot(path, ordered, offsets, phases, markers, peakAnnotations);
         }, token);
     }
 
@@ -1190,8 +1226,10 @@ public sealed class AdvancedAnalysisViewModel(
     private static void DecorateSnapshot(
         string path,
         WaveformData[] waveforms,
+        IReadOnlyDictionary<string, double> offsets,
         IReadOnlyList<SnapshotPhase>? phases,
-        IReadOnlyList<(double Time, string Label)>? markers)
+        IReadOnlyList<(double Time, string Label)>? markers,
+        IReadOnlyList<SnapshotPeakAnnotation>? peakAnnotations)
     {
         using SKBitmap bitmap = SKBitmap.Decode(path)
             ?? throw new InvalidOperationException("无法读取刚生成的波形截图。");
@@ -1206,6 +1244,18 @@ public sealed class AdvancedAnalysisViewModel(
         float ToX(double time) => plotLeft +
             (float)((time - xMinimum) / Math.Max(xMaximum - xMinimum, 1e-12)) *
             (plotRight - plotLeft);
+
+        double displayedMinimum = waveforms.Min(item =>
+            item.Y.Min() + offsets.GetValueOrDefault(item.Channel));
+        double displayedMaximum = waveforms.Max(item =>
+            item.Y.Max() + offsets.GetValueOrDefault(item.Channel));
+        double displayedSpan = Math.Max(displayedMaximum - displayedMinimum, 1e-12);
+        double verticalPadding = displayedSpan * .05;
+        double yMinimum = displayedMinimum - verticalPadding;
+        double yMaximum = displayedMaximum + verticalPadding;
+        float ToY(double value) => plotBottom -
+            (float)((value - yMinimum) / Math.Max(yMaximum - yMinimum, 1e-12)) *
+            (plotBottom - plotTop);
 
         if (phases is { Count: > 0 })
         {
@@ -1301,6 +1351,68 @@ public sealed class AdvancedAnalysisViewModel(
                 typeface,
                 true,
                 SKTextAlign.Center);
+        }
+
+        if (peakAnnotations is { Count: > 0 })
+        {
+            foreach (SnapshotPeakAnnotation annotation in peakAnnotations)
+            {
+                SKColor color = SKColor.Parse(SnapshotChannelColor(annotation.Channel));
+                float pointX = Math.Clamp(ToX(annotation.TimeSeconds), plotLeft, plotRight);
+                double displayedValue = annotation.Value + offsets.GetValueOrDefault(annotation.Channel);
+                float pointY = Math.Clamp(ToY(displayedValue), plotTop + 5, plotBottom - 5);
+                using var guide = new SKPaint
+                {
+                    Color = color.WithAlpha(190),
+                    StrokeWidth = 2,
+                    Style = SKPaintStyle.Stroke,
+                    PathEffect = SKPathEffect.CreateDash([6, 5], 0),
+                    IsAntialias = true
+                };
+                canvas.DrawLine(pointX, pointY, pointX, plotBottom, guide);
+                using var point = new SKPaint { Color = color, IsAntialias = true };
+                canvas.DrawCircle(pointX, pointY, 7, point);
+                using var outline = new SKPaint
+                {
+                    Color = SKColor.Parse("#0B0F12"),
+                    StrokeWidth = 2,
+                    Style = SKPaintStyle.Stroke,
+                    IsAntialias = true
+                };
+                canvas.DrawCircle(pointX, pointY, 8, outline);
+
+                string channelName = ChannelDisplayName.Format(annotation.Channel);
+                string label =
+                    $"{channelName} 电流最大值：{Math.Abs(annotation.Value):F3} {annotation.Unit}  t={annotation.TimeSeconds:F6} s";
+                const float labelWidth = 430;
+                const float labelHeight = 38;
+                float labelLeft = Math.Clamp(pointX + 12, plotLeft + 4, plotRight - labelWidth - 4);
+                float labelTop = Math.Clamp(pointY - labelHeight - 10, plotTop + 48, plotBottom - labelHeight - 4);
+                using var labelBackground = new SKPaint
+                {
+                    Color = SKColor.Parse("#EE202529"),
+                    Style = SKPaintStyle.Fill,
+                    IsAntialias = true
+                };
+                canvas.DrawRoundRect(labelLeft, labelTop, labelWidth, labelHeight, 6, 6, labelBackground);
+                using var labelBorder = new SKPaint
+                {
+                    Color = color,
+                    StrokeWidth = 2,
+                    Style = SKPaintStyle.Stroke,
+                    IsAntialias = true
+                };
+                canvas.DrawRoundRect(labelLeft, labelTop, labelWidth, labelHeight, 6, 6, labelBorder);
+                DrawSnapshotText(
+                    canvas,
+                    label,
+                    labelLeft + 12,
+                    labelTop + 25,
+                    15,
+                    color,
+                    typeface,
+                    true);
+            }
         }
 
         using var footer = new SKPaint { Color = SKColor.Parse("#E6202529") };
