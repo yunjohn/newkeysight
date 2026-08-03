@@ -1,6 +1,7 @@
 using Ivi.Visa;
 using Keysight.Visa;
 using KeysightScopeApp.Core.Instruments;
+using System.Runtime.InteropServices;
 
 namespace KeysightScopeApp.Infrastructure.Instruments;
 
@@ -15,6 +16,13 @@ public sealed class KeysightVisaSessionFactory : IVisaSessionFactory
         await Task.Run(() =>
         {
             token.ThrowIfCancellationRequested();
+            if (!IsNativeRuntimeAvailable())
+            {
+                return new VisaRuntimeStatus(
+                    false,
+                    "未检测到可用的 Keysight VISA 运行环境：缺少 ktvisa32.dll。" +
+                    "请安装 Keysight IO Libraries Suite；离线 CSV 功能不受影响。");
+            }
             try
             {
                 using var manager = new ResourceManager();
@@ -34,6 +42,7 @@ public sealed class KeysightVisaSessionFactory : IVisaSessionFactory
         await Task.Run<IReadOnlyList<string>>(() =>
         {
             token.ThrowIfCancellationRequested();
+            EnsureNativeRuntimeAvailable();
             try
             {
                 using var manager = new ResourceManager();
@@ -60,6 +69,7 @@ public sealed class KeysightVisaSessionFactory : IVisaSessionFactory
         return await Task.Run<IVisaSession>(() =>
         {
             token.ThrowIfCancellationRequested();
+            EnsureNativeRuntimeAvailable();
             ResourceManager? manager = null;
             try
             {
@@ -86,6 +96,22 @@ public sealed class KeysightVisaSessionFactory : IVisaSessionFactory
                 throw new ScopeConnectionException($"无法打开 VISA 资源：{resourceName}", ex);
             }
         }, token);
+    }
+
+    private static bool IsNativeRuntimeAvailable()
+    {
+        if (!NativeLibrary.TryLoad("ktvisa32.dll", out nint handle)) return false;
+        NativeLibrary.Free(handle);
+        return true;
+    }
+
+    private static void EnsureNativeRuntimeAvailable()
+    {
+        if (!IsNativeRuntimeAvailable())
+        {
+            throw new ScopeConnectionException(
+                "未检测到 Keysight VISA 原生运行库 ktvisa32.dll。请安装 Keysight IO Libraries Suite。");
+        }
     }
 }
 

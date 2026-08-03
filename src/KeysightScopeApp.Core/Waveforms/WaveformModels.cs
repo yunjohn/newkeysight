@@ -19,6 +19,19 @@ public sealed record ChannelDisplayMetadata(
     bool IsVisible = true,
     double Offset = 0);
 
+public sealed record ChannelAcquisitionMetadata(
+    double? ProbeAttenuation = null,
+    string? ProbeId = null,
+    string? ProbeType = null,
+    double? VerticalScale = null,
+    double? VerticalOffset = null,
+    string? Coupling = null,
+    string? InputImpedance = null,
+    string? BandwidthLimit = null,
+    bool? Inverted = null,
+    bool? Displayed = null,
+    string? Label = null);
+
 public readonly record struct TimeRange(double Start, double End)
 {
     public double Minimum => Math.Min(Start, End);
@@ -106,7 +119,8 @@ public sealed class WaveformData
         double[] y,
         string pointsMode = "FILE",
         string unit = "V",
-        WaveformPreamble? preamble = null)
+        WaveformPreamble? preamble = null,
+        ChannelAcquisitionMetadata? acquisition = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
         ArgumentNullException.ThrowIfNull(x);
@@ -126,6 +140,7 @@ public sealed class WaveformData
         PointsMode = pointsMode;
         Unit = unit;
         Preamble = preamble;
+        Acquisition = acquisition;
     }
 
     public string Channel { get; }
@@ -134,6 +149,7 @@ public sealed class WaveformData
     public string PointsMode { get; }
     public string Unit { get; }
     public WaveformPreamble? Preamble { get; }
+    public ChannelAcquisitionMetadata? Acquisition { get; }
     public int Count => X.Length;
     public TimeRange Range => new(X[0], X[^1]);
 }

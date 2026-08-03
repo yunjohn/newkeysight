@@ -33,7 +33,7 @@ public sealed class AppSettingsStoreTests
             await store.SaveAsync(expected);
             AppSettings actual = await store.LoadAsync();
 
-            Assert.Equal(5, actual.SchemaVersion);
+            Assert.Equal(6, actual.SchemaVersion);
             Assert.True(actual.FullDeepMemory);
             Assert.Equal(expected.RecentScreenshots, actual.RecentScreenshots);
             Assert.Equal(expected.HiddenVisaResources, actual.HiddenVisaResources);
@@ -67,7 +67,7 @@ public sealed class AppSettingsStoreTests
 
             AppSettings actual = await new AppSettingsStore(paths).LoadAsync();
 
-            Assert.Equal(5, actual.SchemaVersion);
+            Assert.Equal(6, actual.SchemaVersion);
             Assert.Equal(45678, actual.RequestedPoints);
             Assert.Equal("ROLL", actual.TimebaseMode);
         }

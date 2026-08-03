@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace KeysightScopeApp.Infrastructure.Configuration;
 
 public sealed record AppSettings(
-    int SchemaVersion = 5,
+    int SchemaVersion = 6,
     string? LastResource = null,
     string PointsMode = "NORMal",
     string AcquireType = "NORMal",
@@ -27,6 +27,9 @@ public sealed record AppSettings(
     double VerticalScale = 1,
     double VerticalOffset = 0,
     bool VerticalDisplayed = true,
+    string AiEndpoint = "https://api.openai.com/v1",
+    string AiModel = "gpt-5-mini",
+    int AiTimeoutSeconds = 90,
     IReadOnlyDictionary<string, JsonElement>? AdvancedAnalysis = null,
     double WindowLeft = 100,
     double WindowTop = 100,
@@ -71,8 +74,8 @@ public sealed class AppSettingsStore(AppPaths paths)
             AppSettings? result = await JsonSerializer.DeserializeAsync<AppSettings>(stream, options, token);
             return result switch
             {
-                { SchemaVersion: 5 } => result,
-                { SchemaVersion: 1 or 2 or 3 or 4 } => result with { SchemaVersion = 5 },
+                { SchemaVersion: 6 } => result,
+                { SchemaVersion: 1 or 2 or 3 or 4 or 5 } => result with { SchemaVersion = 6 },
                 _ => new()
             };
         }

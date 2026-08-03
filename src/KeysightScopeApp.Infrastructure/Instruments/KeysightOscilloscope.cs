@@ -365,6 +365,8 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         string channel, string pointsMode, int points, CancellationToken token = default)
     {
         ValidateChannel(channel);
+        (string unit, ChannelAcquisitionMetadata metadata) =
+            await ReadChannelMetadataAsync(channel, token);
         await transport.WriteAsync($":WAVeform:SOURce {channel}", token);
         await transport.WriteAsync($":WAVeform:POINts:MODE {pointsMode}", token);
         await transport.WriteAsync($":WAVeform:POINts {points}", token);
@@ -388,7 +390,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         }
         var model = new WaveformPreamble((int)preamble[0], (int)preamble[1], count, (int)preamble[3],
             preamble[4], preamble[5], preamble[6], preamble[7], preamble[8], preamble[9]);
-        return new(channel, x, y, pointsMode, "V", model);
+        return new(channel, x, y, pointsMode, unit, model, metadata);
     }
 
     public async Task<WaveformData> FetchWaveformChunkedAsync(
@@ -403,6 +405,9 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chunkPoints);
         if (!new[] { "NORMal", "MAXimum", "RAW" }.Contains(pointsMode, StringComparer.Ordinal))
             throw new ArgumentException($"不支持的波形点模式：{pointsMode}", nameof(pointsMode));
+
+        (string unit, ChannelAcquisitionMetadata metadata) =
+            await ReadChannelMetadataAsync(channel, token);
 
         await transport.WriteAsync($":WAVeform:SOURce {channel}", token);
         await transport.WriteAsync(":WAVeform:FORMat BYTE", token);
@@ -453,7 +458,53 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         }
         var model = new WaveformPreamble((int)preamble[0], (int)preamble[1], recordPoints, (int)preamble[3],
             preamble[4], preamble[5], preamble[6], preamble[7], preamble[8], preamble[9]);
-        return new(channel, x, y, pointsMode, "V", model);
+        return new(channel, x, y, pointsMode, unit, model, metadata);
+    }
+
+    private async Task<(string Unit, ChannelAcquisitionMetadata Metadata)> ReadChannelMetadataAsync(
+        string channel,
+        CancellationToken token)
+    {
+        async Task<string?> OptionalQuery(string command)
+        {
+            try
+            {
+                string value = (await transport.QueryAsync(command, token)).Trim().Trim('"');
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+            catch when (!token.IsCancellationRequested)
+            {
+                return null;
+            }
+        }
+
+        static double? Number(string? value) =>
+            double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) &&
+            double.IsFinite(parsed) ? parsed : null;
+        static bool? Boolean(string? value) => value?.Trim().ToUpperInvariant() switch
+        {
+            "1" or "ON" => true,
+            "0" or "OFF" => false,
+            _ => null
+        };
+
+        string? unit = await OptionalQuery($":{channel}:UNITs?");
+        string? probe = await OptionalQuery($":{channel}:PROBe?");
+        string? probeId = await OptionalQuery($":{channel}:PROBe:ID?");
+        string? probeType = await OptionalQuery($":{channel}:PROBe:HEAD:TYPE?");
+        string? scale = await OptionalQuery($":{channel}:SCALe?");
+        string? offset = await OptionalQuery($":{channel}:OFFSet?");
+        string? coupling = await OptionalQuery($":{channel}:COUPling?");
+        string? impedance = await OptionalQuery($":{channel}:IMPedance?");
+        string? bandwidth = await OptionalQuery($":{channel}:BWLimit?");
+        string? inverted = await OptionalQuery($":{channel}:INVert?");
+        string? displayed = await OptionalQuery($":{channel}:DISPlay?");
+        string? label = await OptionalQuery($":{channel}:LABel?");
+        return (
+            unit?.ToUpperInvariant() ?? "V",
+            new(
+                Number(probe), probeId, probeType, Number(scale), Number(offset),
+                coupling, impedance, bandwidth, Boolean(inverted), Boolean(displayed), label));
     }
 
     private async Task<byte[]> QueryBinaryAndClearAsync(

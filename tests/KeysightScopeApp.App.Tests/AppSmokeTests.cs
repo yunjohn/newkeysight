@@ -106,6 +106,19 @@ public sealed class AppSmokeTests
                         csv,
                         new KeysightScopeApp.Infrastructure.Validation.TestProfileRepository(paths.Profiles),
                         new KeysightScopeApp.Infrastructure.Validation.BatchRunner()),
+                    new KeysightScopeApp.App.ViewModels.AiAssistantViewModel(
+                        new KeysightScopeApp.Infrastructure.AI.OpenAiCompatibleAssistantService(new System.Net.Http.HttpClient()),
+                        new KeysightScopeApp.Infrastructure.AI.AiCredentialStore(paths),
+                        new KeysightScopeApp.Infrastructure.AI.AiAssistantHistoryStore(paths),
+                        settings,
+                        csv,
+                        viewModel),
+                    new KeysightScopeApp.App.ViewModels.AiWaveformAnalysisViewModel(
+                        new KeysightScopeApp.Infrastructure.AI.OpenAiCompatibleAssistantService(new System.Net.Http.HttpClient()),
+                        new KeysightScopeApp.Infrastructure.AI.AiCredentialStore(paths),
+                        new KeysightScopeApp.Infrastructure.AI.AiAssistantHistoryStore(paths),
+                        settings,
+                        viewModel),
                     Microsoft.Extensions.Logging.Abstractions.NullLogger<MainWindow>.Instance);
                 Assert.Contains("v2.0.0", window.Title, StringComparison.Ordinal);
                 System.Windows.Data.Binding? binding = System.Windows.Data.BindingOperations.GetBinding(

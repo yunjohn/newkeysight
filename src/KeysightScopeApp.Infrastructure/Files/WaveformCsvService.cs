@@ -12,7 +12,8 @@ public sealed class WaveformCsvException(string message, int? lineNumber = null,
 
 public sealed class WaveformCsvService
 {
-    private const string BundleHeader = "# KEYSIGHT_SCOPE_BUNDLE_V1";
+    private const string BundleHeaderV1 = "# KEYSIGHT_SCOPE_BUNDLE_V1";
+    private const string BundleHeaderV2 = "# KEYSIGHT_SCOPE_BUNDLE_V2";
 
     public async Task<WaveformBundle> LoadAsync(
         string path,
@@ -27,7 +28,9 @@ public sealed class WaveformCsvService
         if (first is null) throw new WaveformCsvException("CSV 文件为空。");
 
         var waveforms = new List<WaveformData>();
-        if (TrimCsvQuotes(first).Equals(BundleHeader, StringComparison.Ordinal))
+        string header = TrimCsvQuotes(first);
+        if (header.Equals(BundleHeaderV1, StringComparison.Ordinal) ||
+            header.Equals(BundleHeaderV2, StringComparison.Ordinal))
             await ReadBundleAsync(reader, stream, length, waveforms, progress, cancellationToken);
         else
             waveforms.Add(await ReadSingleAsync(first, reader, stream, length, progress, cancellationToken));
@@ -52,13 +55,12 @@ public sealed class WaveformCsvService
             await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, true))
             await using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
             {
-                await writer.WriteLineAsync(BundleHeader);
+                await writer.WriteLineAsync(BundleHeaderV2);
                 int channelIndex = 0;
                 foreach (WaveformData waveform in bundle.Channels.Values)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    await writer.WriteLineAsync(
-                        $"\"# channel={waveform.Channel},points_mode={waveform.PointsMode},unit={waveform.Unit}\"");
+                    await writer.WriteLineAsync($"\"# {BuildMetadata(waveform)}\"");
                     await writer.WriteLineAsync("time_s,voltage_v");
                     for (int i = 0; i < waveform.Count; i++)
                     {
@@ -84,6 +86,8 @@ public sealed class WaveformCsvService
         IProgress<double>? progress, CancellationToken token)
     {
         string? channel = null, mode = "FILE", unit = "V";
+        WaveformPreamble? preamble = null;
+        ChannelAcquisitionMetadata? acquisition = null;
         var x = new List<double>();
         var y = new List<double>();
         int line = 1;
@@ -98,11 +102,16 @@ public sealed class WaveformCsvService
                 Dictionary<string, string> metadata = value[2..].Split(',')
                     .Select(item => item.Split('=', 2))
                     .Where(item => item.Length == 2)
-                    .ToDictionary(item => item[0].Trim(), item => item[1].Trim(), StringComparer.OrdinalIgnoreCase);
+                    .ToDictionary(
+                        item => item[0].Trim(),
+                        item => Uri.UnescapeDataString(item[1].Trim()),
+                        StringComparer.OrdinalIgnoreCase);
                 if (!metadata.TryGetValue("channel", out channel))
                     throw new WaveformCsvException("通道区段缺少 channel 元数据。", line);
                 mode = metadata.GetValueOrDefault("points_mode", "FILE");
                 unit = metadata.GetValueOrDefault("unit", "V");
+                preamble = ReadPreamble(metadata);
+                acquisition = ReadAcquisition(metadata);
                 continue;
             }
             if (value.Equals("time_s,voltage_v", StringComparison.OrdinalIgnoreCase)) continue;
@@ -116,12 +125,97 @@ public sealed class WaveformCsvService
         {
             if (channel is null) return;
             if (x.Count == 0) throw new WaveformCsvException($"通道 {channel} 没有数据。", line);
-            output.Add(new WaveformData(channel, [.. x], [.. y], mode, unit));
+            output.Add(new WaveformData(channel, [.. x], [.. y], mode, unit, preamble, acquisition));
             channel = null;
+            preamble = null;
+            acquisition = null;
             x.Clear();
             y.Clear();
         }
     }
+
+    private static string BuildMetadata(WaveformData waveform)
+    {
+        var fields = new List<(string Key, string? Value)>
+        {
+            ("channel", waveform.Channel),
+            ("points_mode", waveform.PointsMode),
+            ("unit", waveform.Unit)
+        };
+        if (waveform.Preamble is { } p)
+        {
+            fields.AddRange([
+                ("pre_format", Invariant(p.Format)), ("pre_type", Invariant(p.Type)),
+                ("pre_points", Invariant(p.Points)), ("pre_count", Invariant(p.Count)),
+                ("x_increment", Invariant(p.XIncrement)), ("x_origin", Invariant(p.XOrigin)),
+                ("x_reference", Invariant(p.XReference)), ("y_increment", Invariant(p.YIncrement)),
+                ("y_origin", Invariant(p.YOrigin)), ("y_reference", Invariant(p.YReference))
+            ]);
+        }
+        if (waveform.Acquisition is { } a)
+        {
+            fields.AddRange([
+                ("probe_attenuation", Invariant(a.ProbeAttenuation)),
+                ("probe_id", a.ProbeId), ("probe_type", a.ProbeType),
+                ("vertical_scale", Invariant(a.VerticalScale)),
+                ("vertical_offset", Invariant(a.VerticalOffset)),
+                ("coupling", a.Coupling), ("input_impedance", a.InputImpedance),
+                ("bandwidth_limit", a.BandwidthLimit),
+                ("inverted", Invariant(a.Inverted)), ("displayed", Invariant(a.Displayed)),
+                ("label", a.Label)
+            ]);
+        }
+        return string.Join(',', fields
+            .Where(field => field.Value is not null)
+            .Select(field => $"{field.Key}={Uri.EscapeDataString(field.Value!)}"));
+    }
+
+    private static WaveformPreamble? ReadPreamble(Dictionary<string, string> metadata)
+    {
+        if (!metadata.ContainsKey("pre_format")) return null;
+        return new(
+            Integer("pre_format"), Integer("pre_type"), Integer("pre_points"), Integer("pre_count", 1),
+            Number("x_increment"), Number("x_origin"), Number("x_reference"),
+            Number("y_increment", 1), Number("y_origin"), Number("y_reference"));
+
+        int Integer(string key, int fallback = 0) =>
+            int.TryParse(metadata.GetValueOrDefault(key), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out int value) ? value : fallback;
+        double Number(string key, double fallback = 0) =>
+            double.TryParse(metadata.GetValueOrDefault(key), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out double value) ? value : fallback;
+    }
+
+    private static ChannelAcquisitionMetadata? ReadAcquisition(
+        Dictionary<string, string> metadata)
+    {
+        string[] keys = ["probe_attenuation", "probe_id", "probe_type", "vertical_scale",
+            "vertical_offset", "coupling", "input_impedance", "bandwidth_limit", "inverted",
+            "displayed", "label"];
+        if (!keys.Any(metadata.ContainsKey)) return null;
+        return new(
+            Number("probe_attenuation"), Text("probe_id"), Text("probe_type"),
+            Number("vertical_scale"), Number("vertical_offset"), Text("coupling"),
+            Text("input_impedance"), Text("bandwidth_limit"), Boolean("inverted"),
+            Boolean("displayed"), Text("label"));
+
+        string? Text(string key) => metadata.GetValueOrDefault(key);
+        double? Number(string key) =>
+            double.TryParse(Text(key), NumberStyles.Float, CultureInfo.InvariantCulture,
+                out double value) && double.IsFinite(value) ? value : null;
+        bool? Boolean(string key) => Text(key)?.ToLowerInvariant() switch
+        {
+            "true" or "1" or "on" => true,
+            "false" or "0" or "off" => false,
+            _ => null
+        };
+    }
+
+    private static string Invariant<T>(T value) where T : IFormattable =>
+        value.ToString(null, CultureInfo.InvariantCulture);
+    private static string? Invariant<T>(T? value) where T : struct, IFormattable =>
+        value?.ToString(null, CultureInfo.InvariantCulture);
+    private static string? Invariant(bool? value) => value?.ToString().ToLowerInvariant();
 
     private static async Task<WaveformData> ReadSingleAsync(
         string first, StreamReader reader, Stream stream, long length,

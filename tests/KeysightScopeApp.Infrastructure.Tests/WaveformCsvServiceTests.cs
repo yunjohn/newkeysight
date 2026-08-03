@@ -41,6 +41,32 @@ public sealed class WaveformCsvServiceTests
     }
 
     [Fact]
+    public async Task BundleV2RoundTripPreservesPreambleAndChannelMetadata()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".csv");
+        try
+        {
+            var preamble = new WaveformPreamble(0, 0, 3, 1, .1, -1, 0, .02, 0, 128);
+            var metadata = new ChannelAcquisitionMetadata(
+                10, "N2843A", "PASSIVE", .5, -.25, "DC", "ONEMeg", "0",
+                false, true, "电机,电流");
+            var source = new WaveformBundle([
+                new("CHANnel2", [0, .1, .2], [1, 2, 3], "RAW", "A", preamble, metadata)
+            ]);
+            var service = new WaveformCsvService();
+
+            await service.SaveBundleAsync(source, path);
+            WaveformData loaded = (await service.LoadAsync(path))["CHANnel2"];
+
+            Assert.Equal("A", loaded.Unit);
+            Assert.Equal(preamble, loaded.Preamble);
+            Assert.Equal(metadata, loaded.Acquisition);
+            Assert.StartsWith("# KEYSIGHT_SCOPE_BUNDLE_V2", await File.ReadAllTextAsync(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
     public async Task BrokenLineReportsLineNumber()
     {
         string path = Path.GetTempFileName();
