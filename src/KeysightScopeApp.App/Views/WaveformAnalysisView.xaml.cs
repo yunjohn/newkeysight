@@ -1239,8 +1239,25 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                 $"   宽度={range.Value.Duration:G9} 秒",
                 null));
         }
-        if (voltageA is not null && voltageB is not null)
-            lines.Add(($"电压游标 1={voltageA:G8}   电压游标 2={voltageB:G8}   差值={Math.Abs(voltageB.Value - voltageA.Value):G8}", null));
+        if ((voltageA is not null || voltageB is not null) &&
+            ActiveChannel.SelectedItem is string voltageChannel &&
+            bundle.Channels.TryGetValue(voltageChannel, out WaveformData? voltageWaveform))
+        {
+            double offset = channelOffsets.GetValueOrDefault(voltageChannel);
+            string unit = string.IsNullOrWhiteSpace(voltageWaveform.Unit)
+                ? "V"
+                : voltageWaveform.Unit;
+            string voltageReadout =
+                $"电压游标（{ChannelDisplayName.Format(voltageChannel)}）";
+            if (voltageA is not null)
+                voltageReadout += $"   1={voltageA.Value - offset:G8} {unit}";
+            if (voltageB is not null)
+                voltageReadout += $"   2={voltageB.Value - offset:G8} {unit}";
+            if (voltageA is not null && voltageB is not null)
+                voltageReadout +=
+                    $"   差值={Math.Abs(voltageB.Value - voltageA.Value):G8} {unit}";
+            lines.Add((voltageReadout, voltageChannel));
+        }
         bool hasChannelMeasurement = false;
         foreach ((string selectedChannel, HashSet<string> selected) in channelMeasurements)
         {
@@ -1465,6 +1482,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
                 scatter.LineWidth = name.Equals(channel, StringComparison.OrdinalIgnoreCase)
                     ? 2.5f : 1;
             Plot.Refresh();
+            _ = RenderAsync(useCurrentView: true);
         }
     }
 
