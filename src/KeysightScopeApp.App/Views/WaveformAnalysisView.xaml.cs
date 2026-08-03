@@ -1201,10 +1201,43 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         }
         NormalizeCursorOrder();
         var lines = new List<(string Text, string? Channel)>();
-        if (range is not null)
+        if (cursorA is not null)
         {
-            double delta = range.Value.Duration;
-            lines.Add(($"游标 A={range.Value.Minimum:G8} 秒   游标 B={range.Value.Maximum:G8} 秒   时间差={delta:G8} 秒   倒数频率={(delta > 0 ? 1 / delta : 0):G8} 赫兹", null));
+            string timeReadout = $"游标 A={cursorA.Value:G9} 秒";
+            if (cursorB is not null)
+            {
+                double delta = cursorB.Value - cursorA.Value;
+                timeReadout +=
+                    $"   游标 B={cursorB.Value:G9} 秒   ΔT={delta:G9} 秒" +
+                    $"   1/ΔT={(delta > 0 ? 1 / delta : 0):G9} 赫兹";
+            }
+            lines.Add((timeReadout, null));
+
+            foreach (WaveformData waveform in bundle.Channels.Values.Where(IsChannelVisible))
+            {
+                if (cursorA.Value < waveform.X[0] || cursorA.Value > waveform.X[^1]) continue;
+                double valueA = WaveformAnalysis.Interpolate(waveform, cursorA.Value);
+                string channelReadout =
+                    $"{ChannelDisplayName.Format(waveform.Channel)}: A={valueA:G8} {waveform.Unit}";
+                if (cursorB is not null &&
+                    cursorB.Value >= waveform.X[0] && cursorB.Value <= waveform.X[^1])
+                {
+                    double valueB = WaveformAnalysis.Interpolate(waveform, cursorB.Value);
+                    channelReadout +=
+                        $"   B={valueB:G8} {waveform.Unit}" +
+                        $"   Δ={valueB - valueA:G8} {waveform.Unit}";
+                }
+                lines.Add((channelReadout, waveform.Channel));
+            }
+        }
+        string measurementScope =
+            (MeasurementScope.SelectedItem as FrameworkElement)?.Tag?.ToString() ?? "Entire";
+        if (range is not null && measurementScope == "View")
+        {
+            lines.Add((
+                $"当前视图测量范围：{range.Value.Minimum:G9}～{range.Value.Maximum:G9} 秒" +
+                $"   宽度={range.Value.Duration:G9} 秒",
+                null));
         }
         if (voltageA is not null && voltageB is not null)
             lines.Add(($"电压游标 1={voltageA:G8}   电压游标 2={voltageB:G8}   差值={Math.Abs(voltageB.Value - voltageA.Value):G8}", null));
