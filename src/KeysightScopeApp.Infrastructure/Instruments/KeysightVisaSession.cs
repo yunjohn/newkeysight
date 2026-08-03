@@ -2,6 +2,7 @@ using Ivi.Visa;
 using Keysight.Visa;
 using KeysightScopeApp.Core.Instruments;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace KeysightScopeApp.Infrastructure.Instruments;
 
@@ -154,6 +155,20 @@ internal sealed class KeysightVisaSession(
         {
             return QueryBinaryBlock(command);
         }, timeoutMilliseconds, token);
+
+    public Task WriteBinaryBlockAsync(string command, byte[] data, CancellationToken token) =>
+        InvokeAsync(() =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(command);
+            ArgumentNullException.ThrowIfNull(data);
+            string length = data.Length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            byte[] prefix = Encoding.ASCII.GetBytes($"{command} #{length.Length}{length}");
+            byte[] message = new byte[prefix.Length + data.Length + 1];
+            prefix.CopyTo(message, 0);
+            data.CopyTo(message, prefix.Length);
+            message[^1] = (byte)'\n';
+            session.RawIO.Write(message);
+        }, token);
 
     private byte[] QueryBinaryBlock(string command)
     {

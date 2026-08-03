@@ -322,6 +322,38 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task SavesAcquisitionChannelToSelectedReferenceSlot()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":SYSTem:ERRor?"] = "+0,\"No error\"";
+        var scope = new KeysightOscilloscope(transport);
+
+        await scope.SaveChannelToReferenceAsync("CHANnel3", 2);
+
+        Assert.Contains(("write", ":WMEMory2:SAVE CHANnel3"), transport.Commands);
+        Assert.Contains(("write", ":WMEMory2:DISPlay ON"), transport.Commands);
+    }
+
+    [Fact]
+    public async Task UploadsKeysightH5AsIeeeReferenceBlock()
+    {
+        string path = Path.ChangeExtension(Path.GetTempFileName(), ".h5");
+        try
+        {
+            await File.WriteAllBytesAsync(path, [137, 72, 68, 70, 13, 10, 26, 10, 1, 2]);
+            var transport = new ScriptedScopeTransport();
+            transport.Queries[":SYSTem:ERRor?"] = "+0,\"No error\"";
+            var scope = new KeysightOscilloscope(transport);
+
+            await scope.UploadReferenceWaveformAsync(path, 1);
+
+            Assert.Contains(("write_binary", ":RECall:WMEMory1 [10 bytes]"), transport.Commands);
+            Assert.Contains(("write", ":WMEMory1:DISPlay ON"), transport.Commands);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task FetchesHardwareAndSoftwareMeasurementsWithChannelUnit()
     {
         var transport = new ScriptedScopeTransport();

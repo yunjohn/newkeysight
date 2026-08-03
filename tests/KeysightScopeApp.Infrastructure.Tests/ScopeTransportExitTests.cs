@@ -58,6 +58,11 @@ public sealed class ScopeTransportExitTests
             int timeoutMilliseconds,
             CancellationToken token) => QueryBinaryAsync(command, token);
 
+        public Task WriteBinaryBlockAsync(
+            string command,
+            byte[] data,
+            CancellationToken token) => Task.CompletedTask;
+
         public ValueTask DisposeAsync()
         {
             disposed.TrySetResult();

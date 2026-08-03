@@ -30,6 +30,51 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
     public Task StopAsync(CancellationToken token = default) =>
         transport.WriteAsync(":STOP", token);
 
+    public async Task SaveChannelToReferenceAsync(
+        string channel,
+        int referenceSlot,
+        CancellationToken token = default)
+    {
+        ValidateChannel(channel);
+        ValidateReferenceSlot(referenceSlot);
+        await transport.WriteAsync($":WMEMory{referenceSlot}:SAVE {channel}", token);
+        await transport.WriteAsync($":WMEMory{referenceSlot}:DISPlay ON", token);
+        await EnsureNoSystemErrorAsync("保存参考波形", token);
+    }
+
+    public async Task UploadReferenceWaveformAsync(
+        string path,
+        int referenceSlot,
+        CancellationToken token = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ValidateReferenceSlot(referenceSlot);
+        if (!Path.GetExtension(path).Equals(".h5", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("DSO-X 3000T 只能召回 Keysight 参考波形 .h5 文件。", nameof(path));
+        byte[] data = await File.ReadAllBytesAsync(path, token);
+        ReadOnlySpan<byte> hdf5Signature = [137, 72, 68, 70, 13, 10, 26, 10];
+        if (data.Length < hdf5Signature.Length ||
+            !data.AsSpan(0, hdf5Signature.Length).SequenceEqual(hdf5Signature))
+            throw new WaveformIntegrityException("所选文件不是有效的 HDF5/Keysight 参考波形文件。");
+        await transport.WriteBinaryBlockAsync($":RECall:WMEMory{referenceSlot}", data, token);
+        await transport.WriteAsync($":WMEMory{referenceSlot}:DISPlay ON", token);
+        await EnsureNoSystemErrorAsync("上传参考波形", token);
+    }
+
+    private async Task EnsureNoSystemErrorAsync(string operation, CancellationToken token)
+    {
+        string error = (await GetSystemErrorAsync(token)).Trim();
+        if (!error.StartsWith("+0", StringComparison.Ordinal) &&
+            !error.StartsWith("0,", StringComparison.Ordinal))
+            throw new ScopeProtocolException($"{operation}失败：{error}");
+    }
+
+    private static void ValidateReferenceSlot(int referenceSlot)
+    {
+        if (referenceSlot is not (1 or 2))
+            throw new ArgumentOutOfRangeException(nameof(referenceSlot), "参考波形位置只能是 REF1 或 REF2。");
+    }
+
     public Task SingleAsync(CancellationToken token = default) =>
         transport.WriteAsync(":SINGle", token);
 

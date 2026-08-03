@@ -111,6 +111,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private double verticalScale = 1;
     private double verticalOffset;
     private bool verticalDisplayed = true;
+    private string referenceSource = "CHANnel1";
+    private int referenceSlot = 1;
     private AcquisitionState acquisitionState = AcquisitionState.Disconnected;
 
     public async Task InitializeAsync()
@@ -244,6 +246,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         DeviceScreenshotCommand = new AsyncCommand(CaptureDeviceScreenshotAsync, () => !IsBusy && scope is not null);
         QuickScreenshotCommand = new AsyncCommand(CaptureAndCopyScreenshotAsync,
             () => !IsBusy && scope is not null);
+        SaveChannelToReferenceCommand = new AsyncCommand(SaveChannelToReferenceAsync,
+            () => !IsBusy && scope is not null);
+        UploadReferenceFileCommand = new AsyncCommand(UploadReferenceFileAsync,
+            () => !IsBusy && scope is not null);
         CopyRecentScreenshotCommand = new RelayCommand(CopyRecentScreenshot,
             () => File.Exists(SelectedRecentScreenshot));
         OpenScreenshotFolderCommand = new RelayCommand(() =>
@@ -307,6 +313,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public ICommand SingleCommand { get; }
     public ICommand DeviceScreenshotCommand { get; }
     public ICommand QuickScreenshotCommand { get; }
+    public ICommand SaveChannelToReferenceCommand { get; }
+    public ICommand UploadReferenceFileCommand { get; }
     public ICommand CopyRecentScreenshotCommand { get; }
     public ICommand OpenScreenshotFolderCommand { get; }
     public ICommand ImportLegacyCommand { get; }
@@ -377,6 +385,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public string RunStopText => IsSinglePending
         ? "■  取消单次触发"
         : IsAcquisitionRunning ? "■  停止系统" : "▶  运行系统";
+    public string ReferenceSource
+    {
+        get => referenceSource;
+        set { referenceSource = ScopeChannels.IsValid(value) ? value : "CHANnel1"; Changed(); }
+    }
+    public int ReferenceSlot
+    {
+        get => referenceSlot;
+        set { referenceSlot = value is 1 or 2 ? value : 1; Changed(); }
+    }
     public double Progress { get => progress; private set { progress = value; Changed(); } }
     public string? SelectedResource { get => selectedResource; set { selectedResource = value; Changed(); NotifyCommands(); } }
     public string PointsMode { get => pointsMode; set { pointsMode = value; Changed(); } }
@@ -855,6 +873,41 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         }, ex => FileFailure.Describe(ex, target));
     }
 
+    private async Task SaveChannelToReferenceAsync()
+    {
+        KeysightOscilloscope? instrument = scope;
+        if (instrument is null) return;
+        string source = ReferenceSource;
+        int slot = ReferenceSlot;
+        await RunOperationAsync($"正在将 {ChannelDisplayName.Format(source)} 保存到 REF{slot}…", async token =>
+        {
+            await instrument.SaveChannelToReferenceAsync(source, slot, token);
+            Status = $"{ChannelDisplayName.Format(source)} 已复制到示波器 REF{slot} 并显示。";
+            await AddHistoryAsync("保存参考波形", Status, SelectedResource);
+        });
+    }
+
+    private async Task UploadReferenceFileAsync()
+    {
+        KeysightOscilloscope? instrument = scope;
+        if (instrument is null) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择 Keysight 参考波形文件",
+            Filter = "Keysight 参考波形|*.h5",
+            DefaultExt = ".h5",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        int slot = ReferenceSlot;
+        await RunOperationAsync($"正在上传参考波形到 REF{slot}…", async token =>
+        {
+            await instrument.UploadReferenceWaveformAsync(dialog.FileName, slot, token);
+            Status = $"参考波形已上传到示波器 REF{slot} 并显示。";
+            await AddHistoryAsync("上传参考波形", Status, dialog.FileName);
+        }, ex => FileFailure.Describe(ex, dialog.FileName));
+    }
+
     private void CopyRecentScreenshot()
     {
         if (!File.Exists(SelectedRecentScreenshot)) return;
@@ -1184,6 +1237,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         (SingleCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (DeviceScreenshotCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (QuickScreenshotCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (SaveChannelToReferenceCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (UploadReferenceFileCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (CopyRecentScreenshotCommand as RelayCommand)?.NotifyCanExecuteChanged();
         (ImportLegacyCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ReadTriggerCommand as AsyncCommand)?.NotifyCanExecuteChanged();

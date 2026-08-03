@@ -120,6 +120,28 @@
                                     Style="{DynamicResource PrimaryButton}" MinHeight="36" Margin="0,4"/>
                             <Button Content="另存设备截图" Command="{Binding DeviceScreenshotCommand}"
                                     MinHeight="36" Margin="0,4,0,0"/>
+                            <Separator Margin="0,12,0,10"/>
+                            <TextBlock Text="↥  示波器参考波形" Style="{DynamicResource SectionLabel}"
+                                       Foreground="{DynamicResource CyanBrush}" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <ComboBox SelectedValue="{Binding ReferenceSource}" SelectedValuePath="Tag"
+                                          MinHeight="36" Margin="0,0,4,0" AutomationProperties.Name="参考波形源通道">
+                                    <ComboBoxItem Content="CH1" Tag="CHANnel1"/><ComboBoxItem Content="CH2" Tag="CHANnel2"/>
+                                    <ComboBoxItem Content="CH3" Tag="CHANnel3"/><ComboBoxItem Content="CH4" Tag="CHANnel4"/>
+                                </ComboBox>
+                                <ComboBox Grid.Column="1" SelectedValue="{Binding ReferenceSlot}" SelectedValuePath="Tag"
+                                          MinHeight="36" Margin="4,0,0,0" AutomationProperties.Name="参考波形位置">
+                                    <ComboBoxItem Content="REF1" Tag="1"/><ComboBoxItem Content="REF2" Tag="2"/>
+                                </ComboBox>
+                            </Grid>
+                            <Button Content="当前通道复制到参考波形"
+                                    Command="{Binding SaveChannelToReferenceCommand}" MinHeight="36" Margin="0,4"/>
+                            <Button Content="上传 Keysight H5 到参考波形"
+                                    Command="{Binding UploadReferenceFileCommand}" MinHeight="36" Margin="0,4,0,0"/>
+                            <TextBlock Text="历史 CSV 需先转换为 Keysight .h5；设备不直接接受 CSV。"
+                                       Foreground="{DynamicResource MutedTextBrush}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
 

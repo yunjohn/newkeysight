@@ -12,6 +12,7 @@ public interface IScopeTransport : IAsyncDisposable
     Task<string> QueryAsync(string command, int timeoutMilliseconds, CancellationToken token = default);
     Task<byte[]> QueryBinaryAsync(string command, CancellationToken token = default);
     Task<byte[]> QueryBinaryAsync(string command, int timeoutMilliseconds, CancellationToken token = default);
+    Task WriteBinaryBlockAsync(string command, byte[] data, CancellationToken token = default);
 }
 
 public sealed class ScriptedScopeTransport : IScopeTransport
@@ -66,6 +67,13 @@ public sealed class ScriptedScopeTransport : IScopeTransport
         int timeoutMilliseconds,
         CancellationToken token = default) => QueryBinaryAsync(command, token);
 
+    public Task WriteBinaryBlockAsync(string command, byte[] data, CancellationToken token = default)
+    {
+        EnsureOpen(); token.ThrowIfCancellationRequested();
+        commands.Enqueue(("write_binary", $"{command} [{data.Length} bytes]"));
+        return Task.CompletedTask;
+    }
+
     public ValueTask DisposeAsync() { open = false; return ValueTask.CompletedTask; }
     private void EnsureOpen() { if (!open) throw new ScopeConnectionException("示波器会话已关闭。"); }
 }
@@ -78,6 +86,7 @@ public interface IVisaSession : IAsyncDisposable
     Task<string> QueryAsync(string command, int timeoutMilliseconds, CancellationToken token);
     Task<byte[]> QueryBinaryAsync(string command, CancellationToken token);
     Task<byte[]> QueryBinaryAsync(string command, int timeoutMilliseconds, CancellationToken token);
+    Task WriteBinaryBlockAsync(string command, byte[] data, CancellationToken token);
 }
 
 public interface IVisaSessionFactory
@@ -104,6 +113,8 @@ public sealed class VisaScopeTransport(IVisaSession session, string resourceName
     public Task<byte[]> QueryBinaryAsync(string command, CancellationToken token = default) => InvokeAsync(() => session.QueryBinaryAsync(command, token), token);
     public Task<byte[]> QueryBinaryAsync(string command, int timeoutMilliseconds, CancellationToken token = default) =>
         InvokeAsync(() => session.QueryBinaryAsync(command, timeoutMilliseconds, token), token);
+    public Task WriteBinaryBlockAsync(string command, byte[] data, CancellationToken token = default) =>
+        InvokeAsync(() => session.WriteBinaryBlockAsync(command, data, token), token);
 
     public async ValueTask DisposeAsync()
     {
