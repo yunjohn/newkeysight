@@ -51,6 +51,11 @@ internal sealed record SnapshotPeakAnnotation(
     double Value,
     string Unit);
 
+internal sealed record SnapshotRenderedPeakAnnotation(
+    SnapshotPeakAnnotation Annotation,
+    float PixelX,
+    float PixelY);
+
 public sealed class AdvancedAnalysisViewModel(
     ReportExporter reports,
     TestArchiveService archive,
@@ -1092,7 +1097,7 @@ public sealed class AdvancedAnalysisViewModel(
             waveform.Channel,
             waveform.X[peakIndex],
             waveform.Y[peakIndex],
-            string.IsNullOrWhiteSpace(waveform.Unit) ? "A" : waveform.Unit);
+            "A");
     }
 
     private Task CreateStandardScreenshotAsync(string path, CancellationToken token)
@@ -1147,7 +1152,18 @@ public sealed class AdvancedAnalysisViewModel(
             plot.Title(title);
             plot.ShowLegend();
             plot.SavePng(path, 1920, 1080);
-            DecorateSnapshot(path, ordered, offsets, phases, markers, peakAnnotations);
+            SnapshotRenderedPeakAnnotation[] renderedPeakAnnotations = peakAnnotations?
+                .Select(annotation =>
+                {
+                    double displayedValue = annotation.Value +
+                        offsets.GetValueOrDefault(annotation.Channel);
+                    ScottPlot.Pixel pixel = plot.GetPixel(new ScottPlot.Coordinates(
+                        annotation.TimeSeconds,
+                        displayedValue));
+                    return new SnapshotRenderedPeakAnnotation(annotation, pixel.X, pixel.Y);
+                })
+                .ToArray() ?? [];
+            DecorateSnapshot(path, ordered, phases, markers, renderedPeakAnnotations);
         }, token);
     }
 
@@ -1226,10 +1242,9 @@ public sealed class AdvancedAnalysisViewModel(
     private static void DecorateSnapshot(
         string path,
         WaveformData[] waveforms,
-        IReadOnlyDictionary<string, double> offsets,
         IReadOnlyList<SnapshotPhase>? phases,
         IReadOnlyList<(double Time, string Label)>? markers,
-        IReadOnlyList<SnapshotPeakAnnotation>? peakAnnotations)
+        IReadOnlyList<SnapshotRenderedPeakAnnotation>? peakAnnotations)
     {
         using SKBitmap bitmap = SKBitmap.Decode(path)
             ?? throw new InvalidOperationException("无法读取刚生成的波形截图。");
@@ -1244,18 +1259,6 @@ public sealed class AdvancedAnalysisViewModel(
         float ToX(double time) => plotLeft +
             (float)((time - xMinimum) / Math.Max(xMaximum - xMinimum, 1e-12)) *
             (plotRight - plotLeft);
-
-        double displayedMinimum = waveforms.Min(item =>
-            item.Y.Min() + offsets.GetValueOrDefault(item.Channel));
-        double displayedMaximum = waveforms.Max(item =>
-            item.Y.Max() + offsets.GetValueOrDefault(item.Channel));
-        double displayedSpan = Math.Max(displayedMaximum - displayedMinimum, 1e-12);
-        double verticalPadding = displayedSpan * .05;
-        double yMinimum = displayedMinimum - verticalPadding;
-        double yMaximum = displayedMaximum + verticalPadding;
-        float ToY(double value) => plotBottom -
-            (float)((value - yMinimum) / Math.Max(yMaximum - yMinimum, 1e-12)) *
-            (plotBottom - plotTop);
 
         if (phases is { Count: > 0 })
         {
@@ -1355,12 +1358,12 @@ public sealed class AdvancedAnalysisViewModel(
 
         if (peakAnnotations is { Count: > 0 })
         {
-            foreach (SnapshotPeakAnnotation annotation in peakAnnotations)
+            foreach (SnapshotRenderedPeakAnnotation rendered in peakAnnotations)
             {
+                SnapshotPeakAnnotation annotation = rendered.Annotation;
                 SKColor color = SKColor.Parse(SnapshotChannelColor(annotation.Channel));
-                float pointX = Math.Clamp(ToX(annotation.TimeSeconds), plotLeft, plotRight);
-                double displayedValue = annotation.Value + offsets.GetValueOrDefault(annotation.Channel);
-                float pointY = Math.Clamp(ToY(displayedValue), plotTop + 5, plotBottom - 5);
+                float pointX = Math.Clamp(rendered.PixelX, plotLeft, plotRight);
+                float pointY = Math.Clamp(rendered.PixelY, plotTop + 3, plotBottom - 3);
                 using var guide = new SKPaint
                 {
                     Color = color.WithAlpha(190),
@@ -1371,7 +1374,7 @@ public sealed class AdvancedAnalysisViewModel(
                 };
                 canvas.DrawLine(pointX, pointY, pointX, plotBottom, guide);
                 using var point = new SKPaint { Color = color, IsAntialias = true };
-                canvas.DrawCircle(pointX, pointY, 7, point);
+                canvas.DrawCircle(pointX, pointY, 4, point);
                 using var outline = new SKPaint
                 {
                     Color = SKColor.Parse("#0B0F12"),
@@ -1379,7 +1382,7 @@ public sealed class AdvancedAnalysisViewModel(
                     Style = SKPaintStyle.Stroke,
                     IsAntialias = true
                 };
-                canvas.DrawCircle(pointX, pointY, 8, outline);
+                canvas.DrawCircle(pointX, pointY, 5, outline);
 
                 string channelName = ChannelDisplayName.Format(annotation.Channel);
                 string label =
