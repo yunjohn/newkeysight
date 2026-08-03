@@ -546,23 +546,35 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         int recordPoints = Math.Min(totalPoints.Value, (int)preamble[2]);
         var payload = new byte[recordPoints];
         int copied = 0;
+        int effectiveChunkPoints = chunkPoints;
         for (int start = 1; start <= recordPoints;)
         {
             token.ThrowIfCancellationRequested();
-            int stop = Math.Min(start + chunkPoints - 1, recordPoints);
+            int stop = Math.Min(start + effectiveChunkPoints - 1, recordPoints);
             await transport.WriteAsync($":WAVeform:STARt {start}", token);
             await transport.WriteAsync($":WAVeform:STOP {stop}", token);
             byte[] chunk = await QueryBinaryAndClearAsync(
                 ":WAVeform:DATA?", 60_000, token);
             int expected = stop - start + 1;
-            if (chunk.Length != expected)
+            if (chunk.Length == 0)
                 throw new WaveformIntegrityException(
-                    $"深存储分块返回点数异常：{start}~{stop} 请求 {expected} 点，实际返回 {chunk.Length} 点。");
+                    $"深存储分块返回空数据：{start}~{stop} 请求 {expected} 点。");
+            if (chunk.Length > expected)
+                throw new WaveformIntegrityException(
+                    $"深存储分块返回点数超出请求：{start}~{stop} 请求 {expected} 点，实际返回 {chunk.Length} 点。");
             chunk.CopyTo(payload, copied);
             copied += chunk.Length;
+            // InfiniiVision 系列可能将单次二进制传输限制为低于请求范围的点数。
+            // 接受已经连续返回的数据，并以设备实际能力调整后续分块，避免跳过数据。
+            if (chunk.Length < expected)
+                effectiveChunkPoints = Math.Min(effectiveChunkPoints, chunk.Length);
             progress?.Report((double)copied / recordPoints);
-            start = stop + 1;
+            start += chunk.Length;
         }
+
+        if (copied != recordPoints)
+            throw new WaveformIntegrityException(
+                $"深存储读取不完整：期望 {recordPoints} 点，实际读取 {copied} 点。");
 
         var x = new double[recordPoints];
         var y = new double[recordPoints];

@@ -145,6 +145,28 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task ChunkedReadAdaptsWhenDeviceReturnsFewerPointsThanRequested()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries[":WAVeform:PREamble?"] = "0,0,8,1,1,0,0,1,0,0";
+        transport.BinaryQuerySequences[":WAVeform:DATA?"] = new(
+            new byte[][] { [1, 2, 3], [4, 5, 6], [7, 8] });
+        var scope = new KeysightOscilloscope(transport);
+
+        WaveformData waveform = await scope.FetchWaveformChunkedAsync(
+            "CHANnel1", chunkPoints: 5, totalPoints: 8);
+
+        Assert.Equal(8, waveform.Count);
+        Assert.Equal([1d, 2d, 3d, 4d, 5d, 6d, 7d, 8d], waveform.Y);
+        Assert.Contains(("write", ":WAVeform:STARt 1"), transport.Commands);
+        Assert.Contains(("write", ":WAVeform:STOP 5"), transport.Commands);
+        Assert.Contains(("write", ":WAVeform:STARt 4"), transport.Commands);
+        Assert.Contains(("write", ":WAVeform:STOP 6"), transport.Commands);
+        Assert.Contains(("write", ":WAVeform:STARt 7"), transport.Commands);
+        Assert.Contains(("write", ":WAVeform:STOP 8"), transport.Commands);
+    }
+
+    [Fact]
     public async Task CaptureAutomaticallyChunksLargeRawRecords()
     {
         int points = KeysightOscilloscope.ChunkedReadThreshold + 1;
