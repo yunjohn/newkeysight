@@ -129,7 +129,8 @@
                                     <Button Content="自动堆叠" Click="AutoStack_Click"/>
                                     <Button Content="重置偏移" Click="ResetOffsets_Click"/>
                                     <Button x:Name="ChannelMoveButton" Content="拖动活动通道"
-                                            Tag="ChannelMove" Click="InteractionTool_Click"/>
+                                            Tag="ChannelMove" Click="InteractionTool_Click"
+                                            ToolTip="拖动或使用方向键微调；Shift+方向键精细微调，Alt+方向键可临时移动"/>
                                 </UniformGrid>
                             </StackPanel>
                         </Border>

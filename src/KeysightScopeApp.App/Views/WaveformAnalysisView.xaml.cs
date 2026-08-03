@@ -877,7 +877,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         ChannelMoveButton.Content = interactionTool == WaveformInteractionTool.ChannelMove
             ? "拖动活动通道：开" : "拖动活动通道";
         CursorReadout.Text = interactionTool == WaveformInteractionTool.ChannelMove
-            ? "通道拖动模式：在波形区上下、左右拖动活动通道。"
+            ? "通道拖动模式：鼠标拖动或方向键微调活动通道；Shift+方向键使用精细步进。"
             : "平移模式：按住鼠标左键拖动波形，滚轮缩放。";
     }
 
@@ -1402,6 +1402,11 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (TryNudgeActiveChannel(e))
+        {
+            e.Handled = true;
+            return;
+        }
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.Z)
             UndoView_Click(this, new RoutedEventArgs());
         else if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.Y)
@@ -1423,6 +1428,44 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         else if (e.Key == Key.B) { armedCursor = "B"; CursorReadout.Text = "请在波形上单击放置游标 B。"; }
         else return;
         e.Handled = true;
+    }
+
+    private bool TryNudgeActiveChannel(KeyEventArgs e)
+    {
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return false;
+        bool temporaryMove = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+        if (interactionTool != WaveformInteractionTool.ChannelMove && !temporaryMove) return false;
+        if (Keyboard.FocusedElement is TextBox or ComboBox) return false;
+        if (bundle is null || ActiveChannel.SelectedItem is not string channel ||
+            !bundle.Channels.ContainsKey(channel)) return false;
+
+        ScottPlot.AxisLimits limits = Plot.Plot.Axes.GetLimits();
+        bool fine = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+        double fraction = fine ? .001 : .005;
+        double horizontalStep = Math.Max(Math.Abs(limits.Right - limits.Left) * fraction, 1e-12);
+        double verticalStep = Math.Max(Math.Abs(limits.Top - limits.Bottom) * fraction, 1e-12);
+        switch (key)
+        {
+            case Key.Left:
+                channelTimeOffsets[channel] = channelTimeOffsets.GetValueOrDefault(channel) - horizontalStep;
+                break;
+            case Key.Right:
+                channelTimeOffsets[channel] = channelTimeOffsets.GetValueOrDefault(channel) + horizontalStep;
+                break;
+            case Key.Up:
+                channelOffsets[channel] = channelOffsets.GetValueOrDefault(channel) + verticalStep;
+                break;
+            case Key.Down:
+                channelOffsets[channel] = channelOffsets.GetValueOrDefault(channel) - verticalStep;
+                break;
+        }
+        CursorReadout.Text =
+            $"{ChannelDisplayName.Format(channel)} 微调：时间 {channelTimeOffsets.GetValueOrDefault(channel):G7} s，" +
+            $"垂直 {channelOffsets.GetValueOrDefault(channel):G7}" +
+            (fine ? "（精细步进）" : "");
+        _ = RenderAsync(useCurrentView: true);
+        return true;
     }
 
     private WaveformViewState CaptureViewState()
