@@ -137,6 +137,10 @@
                             </Grid>
                             <Button Content="当前通道复制到参考波形"
                                     Command="{Binding SaveChannelToReferenceCommand}" MinHeight="36" Margin="0,4"/>
+                            <TextBox Text="{Binding ReferenceFileName, UpdateSourceTrigger=PropertyChanged}"
+                                     MinHeight="36" Margin="0,4" AutomationProperties.Name="参考波形文件名"/>
+                            <Button Content="保存 H5 到示波器存储"
+                                    Command="{Binding SaveReferenceFileCommand}" MinHeight="36" Margin="0,4"/>
                             <Button Content="上传 Keysight H5 到参考波形"
                                     Command="{Binding UploadReferenceFileCommand}" MinHeight="36" Margin="0,4,0,0"/>
                             <TextBlock Text="历史 CSV 需先转换为 Keysight .h5；设备不直接接受 CSV。"

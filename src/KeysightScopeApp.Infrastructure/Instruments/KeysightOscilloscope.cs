@@ -61,6 +61,26 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         await EnsureNoSystemErrorAsync("上传参考波形", token);
     }
 
+    public async Task SaveReferenceFileToDeviceStorageAsync(
+        string channel,
+        string fileName,
+        CancellationToken token = default)
+    {
+        ValidateChannel(channel);
+        string normalized = Path.GetFileName(fileName.Trim());
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new ArgumentException("请输入参考波形文件名。", nameof(fileName));
+        if (!Path.GetExtension(normalized).Equals(".h5", StringComparison.OrdinalIgnoreCase))
+            normalized += ".h5";
+        if (normalized.Contains('"'))
+            throw new ArgumentException("文件名不能包含双引号。", nameof(fileName));
+
+        await transport.WriteAsync($":SAVE:WMEMory:SOURce {channel}", token);
+        await transport.WriteAsync($":SAVE:WMEMory \"{normalized}\"", token);
+        _ = await transport.QueryAsync("*OPC?", 30_000, token);
+        await EnsureNoSystemErrorAsync("保存参考波形文件", token);
+    }
+
     private async Task EnsureNoSystemErrorAsync(string operation, CancellationToken token)
     {
         string error = (await GetSystemErrorAsync(token)).Trim();

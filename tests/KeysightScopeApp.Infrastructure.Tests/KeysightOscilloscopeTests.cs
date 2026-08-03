@@ -354,6 +354,21 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task SavesReferenceH5ToDeviceCurrentStorage()
+    {
+        var transport = new ScriptedScopeTransport();
+        transport.Queries["*OPC?"] = "1";
+        transport.Queries[":SYSTem:ERRor?"] = "+0,\"No error\"";
+        var scope = new KeysightOscilloscope(transport);
+
+        await scope.SaveReferenceFileToDeviceStorageAsync("CHANnel2", "motor_start");
+
+        Assert.Contains(("write", ":SAVE:WMEMory:SOURce CHANnel2"), transport.Commands);
+        Assert.Contains(("write", ":SAVE:WMEMory \"motor_start.h5\""), transport.Commands);
+        Assert.Contains(("query", "*OPC?"), transport.Commands);
+    }
+
+    [Fact]
     public async Task FetchesHardwareAndSoftwareMeasurementsWithChannelUnit()
     {
         var transport = new ScriptedScopeTransport();

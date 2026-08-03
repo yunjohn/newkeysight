@@ -113,6 +113,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     private bool verticalDisplayed = true;
     private string referenceSource = "CHANnel1";
     private int referenceSlot = 1;
+    private string referenceFileName = "reference_waveform.h5";
     private AcquisitionState acquisitionState = AcquisitionState.Disconnected;
 
     public async Task InitializeAsync()
@@ -250,6 +251,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             () => !IsBusy && scope is not null);
         UploadReferenceFileCommand = new AsyncCommand(UploadReferenceFileAsync,
             () => !IsBusy && scope is not null);
+        SaveReferenceFileCommand = new AsyncCommand(SaveReferenceFileAsync,
+            () => !IsBusy && scope is not null && !string.IsNullOrWhiteSpace(ReferenceFileName));
         CopyRecentScreenshotCommand = new RelayCommand(CopyRecentScreenshot,
             () => File.Exists(SelectedRecentScreenshot));
         OpenScreenshotFolderCommand = new RelayCommand(() =>
@@ -315,6 +318,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public ICommand QuickScreenshotCommand { get; }
     public ICommand SaveChannelToReferenceCommand { get; }
     public ICommand UploadReferenceFileCommand { get; }
+    public ICommand SaveReferenceFileCommand { get; }
     public ICommand CopyRecentScreenshotCommand { get; }
     public ICommand OpenScreenshotFolderCommand { get; }
     public ICommand ImportLegacyCommand { get; }
@@ -394,6 +398,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     {
         get => referenceSlot;
         set { referenceSlot = value is 1 or 2 ? value : 1; Changed(); }
+    }
+    public string ReferenceFileName
+    {
+        get => referenceFileName;
+        set { referenceFileName = value; Changed(); NotifyCommands(); }
     }
     public double Progress { get => progress; private set { progress = value; Changed(); } }
     public string? SelectedResource { get => selectedResource; set { selectedResource = value; Changed(); NotifyCommands(); } }
@@ -908,6 +917,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         }, ex => FileFailure.Describe(ex, dialog.FileName));
     }
 
+    private async Task SaveReferenceFileAsync()
+    {
+        KeysightOscilloscope? instrument = scope;
+        if (instrument is null) return;
+        string source = ReferenceSource;
+        string fileName = ReferenceFileName;
+        await RunOperationAsync("正在保存 Keysight 参考波形文件…", async token =>
+        {
+            await instrument.SaveReferenceFileToDeviceStorageAsync(source, fileName, token);
+            string normalized = Path.ChangeExtension(Path.GetFileName(fileName), ".h5");
+            Status = $"{ChannelDisplayName.Format(source)} 已保存为 {normalized}；位置为示波器当前存储目录。";
+            await AddHistoryAsync("保存参考波形文件", Status, SelectedResource);
+        });
+    }
+
     private void CopyRecentScreenshot()
     {
         if (!File.Exists(SelectedRecentScreenshot)) return;
@@ -1239,6 +1263,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         (QuickScreenshotCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (SaveChannelToReferenceCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (UploadReferenceFileCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (SaveReferenceFileCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (CopyRecentScreenshotCommand as RelayCommand)?.NotifyCanExecuteChanged();
         (ImportLegacyCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ReadTriggerCommand as AsyncCommand)?.NotifyCanExecuteChanged();
