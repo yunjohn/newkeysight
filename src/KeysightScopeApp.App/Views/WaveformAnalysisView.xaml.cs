@@ -1666,19 +1666,28 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
     private async Task SaveWindowPngAsync(string path)
     {
         const int width = 1920, height = 1080;
-        var visual = new DrawingVisual();
-        using (DrawingContext context = visual.RenderOpen())
-            context.DrawRectangle(
-                new VisualBrush(this),
-                null,
-                new Rect(0, 0, width, height));
-        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        await using var memory = new MemoryStream();
-        encoder.Save(memory);
-        await SaveBytesAtomicallyAsync(path, memory.ToArray());
+        Visibility previousPointerVisibility = PointerReadoutPanel.Visibility;
+        try
+        {
+            PointerReadoutPanel.Visibility = Visibility.Collapsed;
+            var visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+                context.DrawRectangle(
+                    new VisualBrush(this),
+                    null,
+                    new Rect(0, 0, width, height));
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(visual);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            await using var memory = new MemoryStream();
+            encoder.Save(memory);
+            await SaveBytesAtomicallyAsync(path, memory.ToArray());
+        }
+        finally
+        {
+            PointerReadoutPanel.Visibility = previousPointerVisibility;
+        }
     }
 
     private async Task SaveCleanPlotPngAsync(string path)
@@ -1784,9 +1793,11 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         const int width = 1920;
         const int height = 1080;
         Visibility previousMeasurementVisibility = MeasurementPanel.Visibility;
+        Visibility previousPointerVisibility = PointerReadoutPanel.Visibility;
         try
         {
             MeasurementPanel.Visibility = Visibility.Visible;
+            PointerReadoutPanel.Visibility = Visibility.Collapsed;
             WaveformSurface.UpdateLayout();
             var visual = new DrawingVisual();
             using (DrawingContext context = visual.RenderOpen())
@@ -1810,6 +1821,7 @@ public partial class WaveformAnalysisView : System.Windows.Controls.UserControl
         finally
         {
             MeasurementPanel.Visibility = previousMeasurementVisibility;
+            PointerReadoutPanel.Visibility = previousPointerVisibility;
         }
     }
 
