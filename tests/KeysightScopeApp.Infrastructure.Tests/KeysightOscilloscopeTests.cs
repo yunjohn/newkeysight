@@ -269,6 +269,44 @@ public sealed class KeysightOscilloscopeTests
     }
 
     [Fact]
+    public async Task ScreenshotAcceptsPngAfterIeeeBlockPrefix()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            byte[] png = [137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3];
+            var transport = new ScriptedScopeTransport();
+            transport.BinaryQueries[":DISPlay:DATA? PNG, COLor"] =
+                [.. "#211"u8.ToArray(), .. png];
+            var scope = new KeysightOscilloscope(transport);
+
+            await scope.CaptureScreenshotAsync(path);
+
+            Assert.Equal(png, await File.ReadAllBytesAsync(path));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ScreenshotFallsBackToAlternateKeysightCommand()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            byte[] png = [137, 80, 78, 71, 13, 10, 26, 10, 4, 5, 6];
+            var transport = new ScriptedScopeTransport();
+            transport.BinaryQueries[":DISPlay:DATA? PNG, COLor"] = [1, 2, 3];
+            transport.BinaryQueries[":DISPlay:DATA? PNG"] = png;
+            var scope = new KeysightOscilloscope(transport);
+
+            await scope.CaptureScreenshotAsync(path);
+
+            Assert.Equal(png, await File.ReadAllBytesAsync(path));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task DrainsErrorsAndSwitchesTimebaseMode()
     {
         var transport = new ScriptedScopeTransport();

@@ -290,11 +290,7 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         try
         {
             await transport.WriteAsync(":HARDcopy:INKSaver OFF", token);
-            byte[] png = await transport.QueryBinaryAsync(
-                ":DISPlay:DATA? PNG, COLor", 30_000, token);
-            if (png.Length < 8 || !png.AsSpan(0, 8).SequenceEqual(
-                    new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
-                throw new WaveformIntegrityException("示波器返回的截图不是有效 PNG 数据。");
+            byte[] png = await QueryScreenshotPngAsync(token);
             await File.WriteAllBytesAsync(temporary, png, token);
             File.Move(temporary, fullPath, true);
         }
@@ -302,6 +298,42 @@ public sealed class KeysightOscilloscope(IScopeTransport transport)
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
+    }
+
+    private async Task<byte[]> QueryScreenshotPngAsync(CancellationToken token)
+    {
+        string[] commands =
+        [
+            ":DISPlay:DATA? PNG, COLor",
+            ":DISPlay:DATA? PNG",
+            ":DISPlay:DATA? PNG, SCReen, COLor"
+        ];
+        var failures = new List<string>();
+        foreach (string command in commands)
+        {
+            try
+            {
+                byte[] response = await transport.QueryBinaryAsync(command, 30_000, token);
+                if (ExtractPng(response) is { } png) return png;
+                string prefix = Convert.ToHexString(response.AsSpan(0, Math.Min(12, response.Length)));
+                failures.Add($"{command} 返回 {response.Length} 字节，前缀 {prefix}");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                failures.Add($"{command}：{ex.Message}");
+            }
+        }
+        throw new WaveformIntegrityException(
+            "示波器返回的截图不是有效 PNG 数据。已尝试兼容命令；" + string.Join("；", failures));
+    }
+
+    private static byte[]? ExtractPng(byte[] response)
+    {
+        ReadOnlySpan<byte> signature = [137, 80, 78, 71, 13, 10, 26, 10];
+        if (response.Length < signature.Length) return null;
+        int start = response.AsSpan().IndexOf(signature);
+        return start < 0 ? null : response[start..];
     }
 
     public async Task<EdgeTriggerSettings> GetTriggerAsync(CancellationToken token = default) =>
