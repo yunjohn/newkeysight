@@ -274,6 +274,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         ApplyTriggerCommand = new AsyncCommand(ApplyTriggerAsync, () => !IsBusy && scope is not null);
         ReadDeviceStatusCommand = new AsyncCommand(ReadDeviceStatusAsync, () => !IsBusy && scope is not null);
         ApplyChannelDisplayCommand = new AsyncCommand(ApplyChannelDisplayAsync, () => !IsBusy && scope is not null);
+        Channel1DisplayCommand = new AsyncCommand(
+            () => ApplySingleChannelDisplayAsync("CHANnel1"), () => !IsBusy);
+        Channel2DisplayCommand = new AsyncCommand(
+            () => ApplySingleChannelDisplayAsync("CHANnel2"), () => !IsBusy);
+        Channel3DisplayCommand = new AsyncCommand(
+            () => ApplySingleChannelDisplayAsync("CHANnel3"), () => !IsBusy);
+        Channel4DisplayCommand = new AsyncCommand(
+            () => ApplySingleChannelDisplayAsync("CHANnel4"), () => !IsBusy);
         ReadVerticalCommand = new AsyncCommand(ReadVerticalAsync, () => !IsBusy && scope is not null);
         ApplyVerticalCommand = new AsyncCommand(ApplyVerticalAsync, () => !IsBusy && scope is not null);
         HideResourceCommand = new RelayCommand(HideSelectedResource,
@@ -336,6 +344,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public ICommand ApplyTriggerCommand { get; }
     public ICommand ReadDeviceStatusCommand { get; }
     public ICommand ApplyChannelDisplayCommand { get; }
+    public ICommand Channel1DisplayCommand { get; }
+    public ICommand Channel2DisplayCommand { get; }
+    public ICommand Channel3DisplayCommand { get; }
+    public ICommand Channel4DisplayCommand { get; }
     public ICommand ReadVerticalCommand { get; }
     public ICommand ApplyVerticalCommand { get; }
     public ICommand HideResourceCommand { get; }
@@ -1214,6 +1226,49 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         });
     }
 
+    private async Task ApplySingleChannelDisplayAsync(string channel)
+    {
+        KeysightOscilloscope? instrument = scope;
+        if (instrument is null) return;
+        bool requested = channel switch
+        {
+            "CHANnel1" => Channel1,
+            "CHANnel2" => Channel2,
+            "CHANnel3" => Channel3,
+            "CHANnel4" => Channel4,
+            _ => throw new ArgumentOutOfRangeException(nameof(channel))
+        };
+        bool applied = false;
+        await RunOperationAsync(
+            $"正在{(requested ? "打开" : "关闭")} {ChannelDisplayName.Format(channel)}…",
+            async token =>
+            {
+                await instrument.SetChannelDisplayAsync(channel, requested, token);
+                bool confirmed = await instrument.GetChannelDisplayAsync(channel, token);
+                SetChannelDisplaySelection(channel, confirmed);
+                if (confirmed != requested)
+                    throw new InvalidOperationException(
+                        $"示波器未接受 {ChannelDisplayName.Format(channel)} 的显示状态。");
+                applied = true;
+                Status = $"{ChannelDisplayName.Format(channel)} 已{(confirmed ? "打开" : "关闭")}。";
+            });
+        if (applied || scope != instrument) return;
+        try { await SynchronizeChannelDisplaysAsync(instrument, CancellationToken.None); }
+        catch { /* 保留操作失败信息，后台轮询会继续恢复真实状态。 */ }
+    }
+
+    private void SetChannelDisplaySelection(string channel, bool displayed)
+    {
+        switch (channel)
+        {
+            case "CHANnel1": Channel1 = displayed; break;
+            case "CHANnel2": Channel2 = displayed; break;
+            case "CHANnel3": Channel3 = displayed; break;
+            case "CHANnel4": Channel4 = displayed; break;
+            default: throw new ArgumentOutOfRangeException(nameof(channel));
+        }
+    }
+
     private async Task SynchronizeChannelDisplaysAsync(
         KeysightOscilloscope instrument,
         CancellationToken token)
@@ -1374,6 +1429,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         (ApplyTriggerCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ReadDeviceStatusCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ApplyChannelDisplayCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (Channel1DisplayCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (Channel2DisplayCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (Channel3DisplayCommand as AsyncCommand)?.NotifyCanExecuteChanged();
+        (Channel4DisplayCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ReadVerticalCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (ApplyVerticalCommand as AsyncCommand)?.NotifyCanExecuteChanged();
         (HideResourceCommand as RelayCommand)?.NotifyCanExecuteChanged();
